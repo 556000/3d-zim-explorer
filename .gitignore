@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+data/
+*.zim
+zim-config.json
+dist/
+'dist/
+*.zip
+.DS_Store
+Thumbs.db

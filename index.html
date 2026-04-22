@@ -1,0 +1,2426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识星图 · 时空导航</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+        :root {
+            --bg: #06080f;
+            --card-bg: rgba(12, 18, 35, 0.92);
+            --card-border: rgba(0, 200, 255, 0.25);
+            --accent: #00d4ff;
+            --accent2: #7b61ff;
+            --accent3: #ff6b9d;
+            --text: #e8edf5;
+            --text-dim: #7a8ba8;
+            --glow: 0 0 30px rgba(0, 212, 255, 0.3);
+            --wiki-link: #6cb4ee;
+            --sticky-bg: rgba(255, 200, 60, 0.12);
+            --sticky-border: rgba(255, 200, 60, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Background canvas for stars & warp */
+        #bg-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1;
+        }
+
+        /* Search bar */
+        .search-bar {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .search-bar input {
+            width: 360px;
+            padding: 12px 20px;
+            background: rgba(12, 18, 35, 0.85);
+            border: 1px solid var(--card-border);
+            border-radius: 24px;
+            color: var(--text);
+            font-size: 15px;
+            outline: none;
+            backdrop-filter: blur(10px);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .search-bar input:focus {
+            border-color: var(--accent);
+            box-shadow: var(--glow);
+        }
+        .search-bar input::placeholder { color: var(--text-dim); }
+        .search-bar button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: none;
+            border-radius: 24px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.3s;
+        }
+        .search-bar button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+        }
+
+        /* Toolbar (top-right) */
+        .toolbar {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .toolbar-btn {
+            padding: 8px 16px;
+            background: rgba(12, 18, 35, 0.85);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            color: var(--text-dim);
+            font-size: 12px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        .toolbar-btn:hover {
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        .toolbar-btn.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(0, 212, 255, 0.1);
+        }
+        .toolbar-btn .toggle-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--text-dim);
+            transition: background 0.2s;
+        }
+        .toolbar-btn.active .toggle-dot {
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent);
+        }
+        /* Language toggle */
+        .lang-btn {
+            margin-left: 6px;
+            padding: 6px 12px;
+            background: rgba(12, 18, 35, 0.85);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            color: var(--text-dim);
+            font-size: 12px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+            user-select: none;
+            letter-spacing: 1px;
+        }
+        .lang-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Search suggestions */
+        .search-suggestions {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 360px;
+            background: rgba(12, 18, 35, 0.95);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            z-index: 100;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+        .search-suggestions.visible { display: block; }
+        .suggestion-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .suggestion-item:hover { background: rgba(0, 212, 255, 0.1); }
+        .suggestion-item:last-child { border-bottom: none; }
+
+        /* Main stage */
+        .stage {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Center card */
+        .center-card {
+            position: relative;
+            width: 480px;
+            max-height: 70vh;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            box-shadow: var(--glow), 0 8px 32px rgba(0,0,0,0.5);
+            padding: 32px;
+            overflow-y: auto;
+            z-index: 20;
+            transition: width 0.5s cubic-bezier(0.4,0,0.2,1), max-height 0.5s cubic-bezier(0.4,0,0.2,1), padding 0.5s;
+        }
+        .center-card.expanded {
+            width: 75vw;
+            max-width: 900px;
+            max-height: 85vh;
+            padding: 36px 40px;
+        }
+        @keyframes cardFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .center-card::-webkit-scrollbar { width: 4px; }
+        .center-card::-webkit-scrollbar-track { background: transparent; }
+        .center-card::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+
+        .card-image-wrap {
+            width: calc(100% + 64px);
+            margin: -32px -32px 20px -32px;
+            max-height: 240px;
+            overflow: hidden;
+            border-radius: 20px 20px 0 0;
+            position: relative;
+        }
+        .card-image-wrap img {
+            width: 100%;
+            max-height: 240px;
+            object-fit: cover;
+            display: block;
+        }
+        .card-image-wrap::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 60px;
+            background: linear-gradient(transparent, var(--card-bg));
+            pointer-events: none;
+        }
+
+        .card-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .card-depth {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+        }
+        .card-summary {
+            font-size: 14px;
+            line-height: 1.8;
+            color: var(--text);
+            opacity: 0.9;
+        }
+
+        /* Expand button */
+        .expand-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            padding: 8px 18px;
+            background: rgba(0, 212, 255, 0.08);
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            border-radius: 16px;
+            color: var(--accent);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.25s;
+            user-select: none;
+        }
+        .expand-btn:hover {
+            background: rgba(0, 212, 255, 0.15);
+            border-color: rgba(0, 212, 255, 0.5);
+            box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
+        }
+        .expand-btn .arrow {
+            transition: transform 0.3s;
+            font-size: 11px;
+        }
+        .expand-btn.active .arrow {
+            transform: rotate(180deg);
+        }
+        .full-content {
+            display: none;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 14px;
+            line-height: 1.9;
+            color: var(--text);
+            opacity: 0.88;
+            word-break: break-word;
+        }
+        .full-content.visible { display: block; }
+        .full-content p {
+            margin-bottom: 14px;
+            text-indent: 2em;
+        }
+
+        /* Wiki links inside card summary */
+        .wiki-link {
+            color: var(--wiki-link);
+            cursor: pointer;
+            text-decoration: none;
+            border-bottom: 1px dashed rgba(108, 180, 238, 0.4);
+            transition: all 0.2s;
+        }
+        .wiki-link:hover {
+            color: #9dd5ff;
+            border-bottom-color: #9dd5ff;
+            text-shadow: 0 0 8px rgba(108, 180, 238, 0.4);
+        }
+        .wiki-link.disabled {
+            color: var(--text);
+            cursor: default;
+            border-bottom: none;
+            text-shadow: none;
+        }
+
+        /* Sticky note */
+        .sticky-note {
+            margin-top: 16px;
+            background: var(--sticky-bg);
+            border: 1px solid var(--sticky-border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            position: relative;
+        }
+        .sticky-note-label {
+            font-size: 11px;
+            color: rgba(255, 200, 60, 0.7);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .sticky-note textarea {
+            width: 100%;
+            min-height: 60px;
+            max-height: 150px;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.6;
+            resize: vertical;
+            outline: none;
+            font-family: inherit;
+        }
+        .sticky-note textarea::placeholder { color: rgba(255, 200, 60, 0.3); }
+        .sticky-note .save-hint {
+            font-size: 10px;
+            color: rgba(255, 200, 60, 0.4);
+            margin-top: 4px;
+            text-align: right;
+        }
+
+        /* SVG lines layer */
+        #lines-svg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 5;  /* 在中心词条下层 */
+            pointer-events: none;
+            transition: opacity 0.4s;
+        }
+
+        /* Related nodes */
+        .related-node {
+            position: fixed;
+            z-index: 18;
+            background: rgba(12, 18, 35, 0.45);
+            border: none;
+            border-radius: 10px;
+            padding: 6px 10px;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            transition: transform 0.3s, box-shadow 0.3s, opacity 0.4s;
+            max-width: 180px;
+            min-width: 60px;
+            text-align: center;
+            animation: nodeFloat 5s ease-in-out infinite;
+        }
+        .related-node.hidden-nodes {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transform: scale(0.5) !important;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            animation: none !important;
+        }
+        .related-node:not(.hidden-nodes) {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .related-node:hover {
+            transform: scale(1.08) !important;
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.35), 0 0 32px rgba(123, 97, 255, 0.15);
+            background: rgba(0, 212, 255, 0.1);
+        }
+        .related-node .node-thumb {
+            width: 100px;
+            height: auto;
+            max-height: 100px;
+            border-radius: 4px;
+            object-fit: cover;
+            margin: 0 auto 4px auto;
+            display: block;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .related-node .node-thumb.loaded {
+            opacity: 1;
+        }
+        .related-node .node-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            white-space: normal;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-height: 1.3;
+            max-height: 2.6em;
+            width: 100%;
+        }
+        .related-node .node-hint {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        @keyframes nodeFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(calc(var(--fy, -6) * 1px)); }
+        }
+
+        @keyframes nodeBounceIn {
+            0% {
+                opacity: 0;
+                transform: scale(0) translateY(30px) rotate(-8deg);
+                filter: blur(6px);
+            }
+            40% {
+                opacity: 1;
+                transform: scale(1.12) translateY(-8px) rotate(2deg);
+                filter: blur(0);
+            }
+            60% {
+                transform: scale(0.95) translateY(3px) rotate(-1deg);
+            }
+            80% {
+                transform: scale(1.03) translateY(-1px) rotate(0.5deg);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0) rotate(0deg);
+                filter: blur(0);
+            }
+        }
+
+        .related-node {
+            opacity: 0; /* Start hidden for staggered bounce-in */
+            animation: nodeBounceIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, nodeFloat 3s ease-in-out infinite;
+        }
+
+        /* Stagger delays — fast pace */
+        .related-node:nth-child(1)  { animation-delay: 0.00s, 0.35s; }
+        .related-node:nth-child(2)  { animation-delay: 0.04s, 0.39s; }
+        .related-node:nth-child(3)  { animation-delay: 0.09s, 0.44s; }
+        .related-node:nth-child(4)  { animation-delay: 0.15s, 0.50s; }
+        .related-node:nth-child(5)  { animation-delay: 0.22s, 0.57s; }
+        .related-node:nth-child(6)  { animation-delay: 0.30s, 0.65s; }
+        .related-node:nth-child(7)  { animation-delay: 0.39s, 0.74s; }
+        .related-node:nth-child(8)  { animation-delay: 0.49s, 0.84s; }
+        .related-node:nth-child(9)  { animation-delay: 0.60s, 0.95s; }
+        .related-node:nth-child(10) { animation-delay: 0.72s, 1.07s; }
+        .related-node:nth-child(11) { animation-delay: 0.85s, 1.20s; }
+        .related-node:nth-child(12) { animation-delay: 0.99s, 1.34s; }
+        .related-node:nth-child(13) { animation-delay: 1.14s, 1.49s; }
+        .related-node:nth-child(14) { animation-delay: 1.30s, 1.65s; }
+        .related-node:nth-child(15) { animation-delay: 1.47s, 1.82s; }
+
+        /* Warp overlay */
+        .warp-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .warp-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Welcome screen */
+        .welcome {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 20;
+        }
+        .welcome h1 {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+        }
+        .welcome p {
+            font-size: 16px;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        /* Loading */
+        .loading-ring {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px; height: 60px;
+            border: 3px solid rgba(0, 212, 255, 0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            z-index: 500;
+            display: none;
+        }
+        .loading-ring.visible { display: block; }
+        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        /* Navigation breadcrumb */
+        .breadcrumb {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 8px 16px;
+            background: rgba(12, 18, 35, 0.8);
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+        }
+        .breadcrumb-item {
+            font-size: 13px;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: color 0.2s;
+            white-space: nowrap;
+        }
+        .breadcrumb-item:hover { color: var(--accent); }
+        .breadcrumb-item.current { color: var(--accent); font-weight: 500; }
+        .breadcrumb-sep { color: rgba(255,255,255,0.15); font-size: 11px; }
+        .breadcrumb-item:hover::before {
+            content: '← ';
+            font-size: 11px;
+        }
+
+        /* Copyright */
+        .copyright {
+            position: fixed;
+            bottom: 12px;
+            right: 20px;
+            z-index: 100;
+            font-size: 11px;
+            color: rgba(255,255,255,0.15);
+            letter-spacing: 1px;
+        }
+
+        /* Export modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.visible { display: flex; }
+        .modal-box {
+            width: 520px;
+            max-height: 80vh;
+            background: rgba(12, 18, 35, 0.98);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 28px;
+            backdrop-filter: blur(20px);
+        }
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .modal-desc {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+        .modal-preview {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            white-space: pre-wrap;
+            font-family: 'Noto Sans SC', monospace;
+        }
+        .modal-preview::-webkit-scrollbar { width: 4px; }
+        .modal-preview::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 10px 22px;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        .modal-btn.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+        }
+        .modal-btn.primary:hover { transform: scale(1.05); }
+        .modal-btn.secondary {
+            background: rgba(255,255,255,0.08);
+            color: var(--text-dim);
+        }
+        .modal-btn.secondary:hover { background: rgba(255,255,255,0.15); }
+
+/* ===== ZIM 加载按钮 ===== */
+.zim-load-btn { cursor: pointer; }
+.zim-load-btn:hover { color: var(--accent); }
+
+/* ===== ZIM 弹窗 ===== */
+.zim-modal-overlay {
+    position: fixed; inset: 0; z-index: 5000;
+    background: rgba(0,0,0,0.75);
+    display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.zim-modal-overlay.visible { display: flex; }
+.zim-modal-box {
+    background: rgba(16,20,35,0.98);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px; padding: 28px;
+    width: 480px; max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.form-group { margin-bottom: 20px; }
+.form-group label {
+    display: block; margin-bottom: 8px;
+    font-size: 13px; color: var(--text-dim);
+}
+.input-row { display: flex; gap: 8px; }
+.input-row input {
+    flex: 1; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; padding: 10px 14px;
+    color: var(--text); font-size: 14px; outline: none;
+}
+.input-row input:focus { border-color: var(--accent); }
+.browse-btn {
+    background: rgba(0,212,255,0.15); border: 1px solid rgba(0,212,255,0.3);
+    border-radius: 8px; padding: 0 16px; color: var(--accent);
+    cursor: pointer; font-size: 14px; white-space: nowrap;
+    transition: background 0.2s;
+}
+.browse-btn:hover { background: rgba(0,212,255,0.25); }
+.error-text {
+    color: #ff6b6b; font-size: 13px; margin-top: 8px; min-height: 18px;
+}
+.btn-row { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ===== ZIM 面板 ===== */
+.zim-panel {
+    display: none; position: fixed; top: 72px; right: 30px;
+    z-index: 200;
+    background: rgba(16,20,35,0.92); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; padding: 5px 10px; font-size: 11px;
+    backdrop-filter: blur(8px); white-space: nowrap;
+    flex-direction: column; gap: 2px; max-width: 260px;
+}
+.zim-panel .zim-name { color: var(--accent); font-weight: 600; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.zim-panel .zim-meta { color: var(--text-dim); font-size: 10px; margin-left: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ===== 版权提示 ===== */
+.copyright-wrap {
+    position: fixed; bottom: 14px; right: 22px; z-index: 200;
+    pointer-events: none;
+}
+.copyright {
+    position: relative; display: inline-block;
+    font-size: 15px; color: #ffffff;
+    cursor: default; pointer-events: auto;
+    transition: color 0.2s;
+}
+.copyright:hover { color: #cccccc; }
+.copyright-tip {
+    position: absolute; bottom: calc(100% + 12px); right: 0;
+    background: rgba(10,14,24,0.97); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 14px 16px; width: 280px;
+    backdrop-filter: blur(12px); box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    display: none; pointer-events: auto;
+}
+.copyright-tip.visible { display: block; }
+.tip-label { font-size: 13px; color: var(--text); font-weight: 600; margin-bottom: 10px; }
+.tip-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; }
+.tip-key { color: var(--text-dim); }
+.tip-value { color: var(--text); }
+.tip-sep { border: none; border-top: 1px solid rgba(255,255,255,0.07); margin: 10px 0; }
+.tip-license { font-size: 11px; color: var(--text-dim); line-height: 1.6; opacity: 0.8; }
+
+    </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="search-bar">
+    <input type="text" id="search-input" placeholder="输入词条，开启时空导航..." autocomplete="off">
+    <button id="search-btn">探索</button>
+</div>
+
+<div class="toolbar" id="toolbar">
+    <div class="toolbar-btn active" id="btn-wiki-links" title="词条内超链接">
+        <span class="toggle-dot"></span>
+        <span data-i18n="toolbar_links">超链接</span>
+    </div>
+    <div class="toolbar-btn" id="btn-export" title="导出思维导图">
+        <span>📄</span>
+        <span data-i18n="toolbar_export">思路导出</span>
+    </div>
+    <div class="toolbar-btn zim-load-btn" id="btn-load-zim" title="载入ZIM文件">
+        <span>📦</span>
+        <span data-i18n="toolbar_load">载入ZIM文件</span>
+    </div>
+    <div class="lang-btn" id="btn-lang" title="切换语言">
+        <span id="lang-label">简</span>
+    </div>
+</div>
+
+<div class="search-suggestions" id="suggestions"></div>
+
+<div class="welcome" id="welcome">
+    <h1 data-i18n="welcome_h1">知识星图</h1>
+    <p data-i18n="welcome_p">输入一个词条，开始你的时空知识导航</p>
+</div>
+
+<div class="stage" id="stage" style="display:none;">
+    <div class="center-card" id="center-card">
+        <div class="card-image-wrap" id="card-image-wrap" style="display:none;">
+            <img id="card-image" src="" alt="">
+        </div>
+        <div class="card-title" id="card-title"></div>
+        <div class="card-depth" id="card-depth"></div>
+        <div class="card-summary" id="card-summary"></div>
+        <button class="expand-btn" id="expand-btn" style="display:none;">
+            <span class="arrow">▼</span>
+            <span id="expand-btn-text" data-i18n="expand_btn">展开全文</span>
+        </button>
+        <div class="full-content" id="full-content"></div>
+        <div class="sticky-note" id="sticky-note">
+            <div class="sticky-note-label" data-i18n="sticky_label">📌 我的便签</div>
+            <textarea id="sticky-text" placeholder="在这里记下你的想法..."></textarea>
+            <div class="save-hint" id="save-hint"></div>
+        </div>
+    </div>
+</div>
+
+<svg id="lines-svg">
+  <defs id="svg-defs">
+    <filter id="lineGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs></svg>
+
+<!-- ZIM 加载弹窗 -->
+<div class="zim-modal-overlay" id="zim-modal">
+    <div class="zim-modal-box" id="zim-modal-box">
+        <div class="modal-title" data-i18n="zim_title">📦 加载 ZIM 文件</div>
+        <div class="form-group">
+            <label data-i18n="zim_label">ZIM 文件路径</label>
+            <div class="input-row">
+                <input type="text" id="zim-path-input" placeholder="如 C:\wiki\zhwiki.zim" autocomplete="off">
+                <button id="btn-browse" class="browse-btn" data-i18n="zim_browse">浏览</button>
+            </div>
+            <div class="error-text" id="zim-error"></div>
+        </div>
+        <div class="btn-row">
+            <button id="btn-zim-cancel" class="modal-btn secondary" data-i18n="zim_cancel">取消</button>
+            <button id="btn-zim-load" class="modal-btn primary" data-i18n="zim_load">加载文件</button>
+        </div>
+    </div>
+</div>
+
+<!-- ZIM 文件信息面板 -->
+<div class="zim-panel" id="zim-panel">
+    <span class="zim-name" id="zim-name"></span>
+    <span class="zim-meta" id="zim-meta"></span>
+</div>
+
+<!-- 版权信息 -->
+<div class="copyright-wrap">
+    <span class="copyright" id="copyright-text">Xarker</span>
+    <div class="copyright-tip" id="copyright-tip">
+        <div class="tip-label" data-i18n="zim_tip_title">知识星图 · 3D 维基百科导航</div>
+        <div class="tip-sep"></div>
+        <div class="tip-row">
+            <span class="tip-key" data-i18n="zim_tip_author">作者</span>
+            <span class="tip-value">陈驰</span>
+        </div>
+        <div class="tip-row">
+            <span class="tip-key" data-i18n="zim_tip_location">来自</span>
+            <span class="tip-value">中国·贵州·凯里</span>
+        </div>
+        <div class="tip-row">
+            <span class="tip-key" data-i18n="zim_tip_contact">联系</span>
+            <span class="tip-value">12097652@QQ.com</span>
+        </div>
+        <div class="tip-row">
+            <span class="tip-key" data-i18n="zim_tip_version">项目版本</span>
+            <span class="tip-value">0.95</span>
+        </div>
+        <div class="tip-sep"></div>
+        <div class="tip-license" data-i18n="zim_tip_license">
+            本项目遵守 GNU GPL v3 开源协议 · 感谢 Kiwix 提供 ZIM 文件格式与离线维基百科解决方案 · 维基百科内容采用 CC BY-SA 3.0 许可
+        </div>
+    </div>
+</div>
+
+<div class="loading-ring" id="loading"></div>
+
+<canvas class="warp-overlay" id="warp-canvas"></canvas>
+
+<div class="breadcrumb" id="breadcrumb" style="display:none;"></div>
+
+<!-- Export modal -->
+<div class="modal-overlay" id="export-modal">
+    <div class="modal-box">
+        <div class="modal-title" data-i18n="export_title">📤 导出思维导图</div>
+        <div class="modal-desc" data-i18n="export_desc">按浏览顺序生成 Markdown 思维导图，包含你的便签内容</div>
+        <div class="modal-preview" id="export-preview"></div>
+        <div class="modal-actions">
+            <button class="modal-btn secondary" id="btn-modal-cancel" data-i18n="modal_cancel">取消</button>
+            <button class="modal-btn primary" id="btn-modal-download" data-i18n="export_download">下载 .md 文件</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// =============================================
+// Config
+// =============================================
+const API = window.location.origin;
+const MAX_RELATED = 15;
+const NOTES_KEY = 'wiki-explorer-notes';
+const VISIT_KEY = 'wiki-explorer-visits';
+const ZIM_PATH_KEY = 'wiki-explorer-zim-path';
+
+// =============================================
+// State
+// =============================================
+let currentTitle = '';
+let currentData = null;
+let currentSummaryHtml = '';
+let navHistory = [];  // {title, data}
+let relatedNodes = [];
+let wikiLinksEnabled = true;
+let stickySaveTimer = null;
+
+// =============================================
+// DOM
+// =============================================
+const searchInput = document.getElementById('search-input');
+const searchBtn = document.getElementById('search-btn');
+const suggestionsEl = document.getElementById('suggestions');
+const welcomeEl = document.getElementById('welcome');
+const stageEl = document.getElementById('stage');
+const cardTitle = document.getElementById('card-title');
+const cardDepth = document.getElementById('card-depth');
+const cardSummary = document.getElementById('card-summary');
+const centerCard = document.getElementById('center-card');
+const linesSvg = document.getElementById('lines-svg');
+const loadingEl = document.getElementById('loading');
+const warpCanvas = document.getElementById('warp-canvas');
+const breadcrumbEl = document.getElementById('breadcrumb');
+const stickyText = document.getElementById('sticky-text');
+const saveHint = document.getElementById('save-hint');
+const btnWikiLinks = document.getElementById('btn-wiki-links');
+const btnExport = document.getElementById('btn-export');
+const exportModal = document.getElementById('export-modal');
+const btnLoadZim = document.getElementById('btn-load-zim');
+const zimModal = document.getElementById('zim-modal');
+const zimPathInput = document.getElementById('zim-path-input');
+const zimErrorEl = document.getElementById('zim-error');
+const zimPanel = document.getElementById('zim-panel');
+const zimNameEl = document.getElementById('zim-name');
+const zimMetaEl = document.getElementById('zim-meta');
+const btnBrowse = document.getElementById('btn-browse');
+const btnZimCancel = document.getElementById('btn-zim-cancel');
+const btnZimLoad = document.getElementById('btn-zim-load');
+const copyrightText = document.getElementById('copyright-text');
+const copyrightTip = document.getElementById('copyright-tip');
+const exportPreview = document.getElementById('export-preview');
+const btnModalCancel = document.getElementById('btn-modal-cancel');
+const btnModalDownload = document.getElementById('btn-modal-download');
+const expandBtn = document.getElementById('expand-btn');
+const expandBtnText = document.getElementById('expand-btn-text');
+const fullContentEl = document.getElementById('full-content');
+let isExpanded = false;
+let fullContentText = '';
+
+// =============================================
+// i18n — Language toggle (zh-CN / zh-TW)
+// =============================================
+const I18N = {
+    'zh-CN': {
+        search_placeholder: '输入词条，开启时空导航...',
+        search_btn: '探索',
+        toolbar_links: '超链接',
+        toolbar_export: '思路导出',
+        toolbar_load: '载入ZIM文件',
+        welcome_h1: '知识星图',
+        welcome_p: '输入一个词条，开始你的时空知识导航',
+        expand_btn: '展开全文',
+        collapse_btn: '收起全文',
+        sticky_label: '我的便签',
+        sticky_placeholder: '在这里记下你的想法...',
+        save_hint: '已自动保存',
+        card_depth: '来源：中文维基百科',
+        breadcrumb_home: '首页',
+        export_title: '导出思维导图',
+        export_desc: '按浏览顺序生成 Markdown 思维导图，包含你的便签内容',
+        export_download: '下载 .md 文件',
+        modal_cancel: '取消',
+        zim_title: '加载 ZIM 文件',
+        zim_label: 'ZIM 文件路径',
+        zim_placeholder: '如 C:\wiki\zhwiki.zim',
+        zim_browse: '浏览',
+        zim_load: '加载文件',
+        zim_cancel: '取消',
+        zim_error_path: '请输入 ZIM 文件路径',
+        zim_error_ext: '文件扩展名必须是 .zim',
+        zim_tip_title: '知识星图 · 3D 维基百科导航',
+        zim_tip_author: '作者',
+        zim_tip_author_val: '陈驰',
+        zim_tip_location: '来自',
+        zim_tip_location_val: '中国·贵州·凯里',
+        zim_tip_contact: '联系',
+        zim_tip_contact_val: '12097652@QQ.com',
+        zim_tip_version: '项目版本',
+        zim_tip_version_val: '0.95',
+        zim_tip_license: '本项目遵守 GNU GPL v3 开源协议 · 感谢 Kiwix 提供 ZIM 文件格式与离线维基百科解决方案 · 维基百科内容采用 CC BY-SA 3.0 许可',
+    },
+    'zh-TW': {
+        search_placeholder: '輸入詞條，開啟時空導航...',
+        search_btn: '探索',
+        toolbar_links: '超連結',
+        toolbar_export: '思路導出',
+        toolbar_load: '載入ZIM文件',
+        welcome_h1: '知識星圖',
+        welcome_p: '輸入一個詞條，開始你的時空知識導航',
+        expand_btn: '展開全文',
+        collapse_btn: '收起全文',
+        sticky_label: '我的便籤',
+        sticky_placeholder: '在這裡記下你的想法...',
+        save_hint: '已自動保存',
+        card_depth: '來源：中文維基百科',
+        breadcrumb_home: '首頁',
+        export_title: '導出思維導圖',
+        export_desc: '按瀏覽順序生成 Markdown 思維導圖，包含你的便籤內容',
+        export_download: '下載 .md 文件',
+        modal_cancel: '取消',
+        zim_title: '載入 ZIM 文件',
+        zim_label: 'ZIM 文件路徑',
+        zim_placeholder: '如 C:\wiki\zhwiki.zim',
+        zim_browse: '瀏覽',
+        zim_load: '載入文件',
+        zim_cancel: '取消',
+        zim_error_path: '請輸入 ZIM 文件路徑',
+        zim_error_ext: '文件副檔名必須是 .zim',
+        zim_tip_title: '知識星圖 · 3D 維基百科導航',
+        zim_tip_author: '作者',
+        zim_tip_author_val: '陳馳',
+        zim_tip_location: '來自',
+        zim_tip_location_val: '中國·貴州·凱里',
+        zim_tip_contact: '聯繫',
+        zim_tip_contact_val: '12097652@QQ.com',
+        zim_tip_version: '項目版本',
+        zim_tip_version_val: '0.95',
+        zim_tip_license: '本項目遵守 GNU GPL v3 開源協議 · 感謝 Kiwix 提供 ZIM 文件格式與離線維基百科解決方案 · 維基百科內容採用 CC BY-SA 3.0 許可',
+    },
+    'en': {
+        search_placeholder: 'Enter a topic to start exploring...',
+        search_btn: 'Explore',
+        toolbar_links: 'Links',
+        toolbar_export: 'Idea Export',
+        toolbar_load: 'Load ZIM',
+        welcome_h1: 'Knowledge Constellation',
+        welcome_p: 'Enter a topic to begin your knowledge exploration',
+        expand_btn: 'Expand',
+        collapse_btn: 'Collapse',
+        sticky_label: 'My Notes',
+        sticky_placeholder: 'Write your thoughts here...',
+        save_hint: 'Saved',
+        card_depth: 'Source: Chinese Wikipedia',
+        breadcrumb_home: 'Home',
+        export_title: 'Export Mind Map',
+        export_desc: 'Generate Markdown mind map in browsing order, including your notes',
+        export_download: 'Download .md',
+        modal_cancel: 'Cancel',
+        zim_title: 'Load ZIM File',
+        zim_label: 'ZIM File Path',
+        zim_placeholder: 'e.g. C:\wiki\zhwiki.zim',
+        zim_browse: 'Browse',
+        zim_load: 'Load',
+        zim_cancel: 'Cancel',
+        zim_error_path: 'Please enter ZIM file path',
+        zim_error_ext: 'File must have .zim extension',
+        zim_tip_title: 'Knowledge Constellation · 3D Wikipedia Navigator',
+        zim_tip_author: 'Author',
+        zim_tip_author_val: 'Chen Chi',
+        zim_tip_location: 'From',
+        zim_tip_location_val: 'Kaili, Guizhou, China',
+        zim_tip_contact: 'Contact',
+        zim_tip_contact_val: '12097652@QQ.com',
+        zim_tip_version: 'Version',
+        zim_tip_version_val: '0.95',
+        zim_tip_license: 'This project is licensed under GNU GPL v3 · Thanks to Kiwix for ZIM file format and offline Wikipedia solutions · Wikipedia content under CC BY-SA 3.0',
+    }
+};
+
+let uiLang = localStorage.getItem('wiki-lang') || 'zh-CN';
+
+function t(key) {
+    return I18N[uiLang][key] || key;
+}
+
+function applyI18n() {
+    // Text nodes with data-i18n
+    document.getElementById('search-input').placeholder = t('search_placeholder');
+    document.getElementById('search-btn').textContent = t('search_btn');
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        el.textContent = t(key);
+    });
+
+    // Expand button text (needs special handling since it changes)
+    if (!isExpanded) expandBtnText.textContent = t('expand_btn');
+
+    // Export modal
+    document.querySelector('#export-modal .modal-title').textContent = t('export_title');
+    document.querySelector('#export-modal .modal-desc').textContent = t('export_desc');
+    document.getElementById('btn-modal-cancel').textContent = t('modal_cancel');
+    document.getElementById('btn-modal-download').textContent = t('export_download');
+
+    // ZIM modal
+    document.querySelector('#zim-modal .modal-title').textContent = t('zim_title');
+    document.querySelector('#zim-modal label').textContent = t('zim_label');
+    document.getElementById('zim-path-input').placeholder = t('zim_placeholder');
+    document.getElementById('btn-browse').textContent = t('zim_browse');
+    document.getElementById('btn-zim-cancel').textContent = t('zim_cancel');
+    document.getElementById('btn-zim-load').textContent = t('zim_load');
+
+    // Sticky note
+    document.querySelector('#sticky-note .sticky-note-label').textContent = t('sticky_label');
+    document.getElementById('sticky-text').placeholder = t('sticky_placeholder');
+
+    // Copyright tip
+    document.querySelector('#copyright-tip .tip-label').textContent = t('zim_tip_title');
+    const tipRows = document.querySelectorAll('#copyright-tip .tip-row');
+    tipRows[0].querySelector('.tip-key').textContent = t('zim_tip_author');
+    tipRows[0].querySelector('.tip-value').textContent = t('zim_tip_author_val');
+    tipRows[1].querySelector('.tip-key').textContent = t('zim_tip_location');
+    tipRows[1].querySelector('.tip-value').textContent = t('zim_tip_location_val');
+    tipRows[2].querySelector('.tip-key').textContent = t('zim_tip_contact');
+    tipRows[2].querySelector('.tip-value').textContent = t('zim_tip_contact_val');
+    tipRows[3].querySelector('.tip-key').textContent = t('zim_tip_version');
+    tipRows[3].querySelector('.tip-value').textContent = t('zim_tip_version_val');
+    document.querySelector('#copyright-tip .tip-license').innerHTML =
+        t('zim_tip_license').replace('，', '，').replace('·', ' · ');
+
+    // Lang button: show what's next
+    if (uiLang === 'zh-CN') {
+        langLabel.textContent = '繁'; // Next is Traditional
+    } else if (uiLang === 'zh-TW') {
+        langLabel.textContent = 'EN'; // Next is English
+    } else {
+        langLabel.textContent = '简'; // Next is Simplified
+    }
+}
+
+// Lang toggle button: zh-CN → zh-TW → en → zh-CN
+const langLabel = document.getElementById('lang-label');
+document.getElementById('btn-lang').addEventListener('click', () => {
+    if (uiLang === 'zh-CN') {
+        uiLang = 'zh-TW';
+    } else if (uiLang === 'zh-TW') {
+        uiLang = 'en';
+    } else {
+        uiLang = 'zh-CN';
+    }
+    localStorage.setItem('wiki-lang', uiLang);
+    applyI18n();
+});
+
+// Apply on load
+applyI18n();
+
+// =============================================
+// Notes & Visit tracking (localStorage)
+// =============================================
+function loadNotes() {
+    try { return JSON.parse(localStorage.getItem(NOTES_KEY) || '{}'); }
+    catch { return {}; }
+}
+function saveNote(title, text) {
+    const notes = loadNotes();
+    if (text.trim()) {
+        notes[title] = text;
+    } else {
+        delete notes[title];
+    }
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+function getNote(title) {
+    return loadNotes()[title] || '';
+}
+
+function loadVisits() {
+    try { return JSON.parse(localStorage.getItem(VISIT_KEY) || '[]'); }
+    catch { return []; }
+}
+function recordVisit(title) {
+    const visits = loadVisits();
+    visits.push({ title, time: new Date().toISOString() });
+    localStorage.setItem(VISIT_KEY, JSON.stringify(visits));
+}
+
+// Sticky note auto-save
+stickyText.addEventListener('input', () => {
+    clearTimeout(stickySaveTimer);
+    saveHint.textContent = '保存中...';
+    stickySaveTimer = setTimeout(() => {
+        saveNote(currentTitle, stickyText.value);
+        saveHint.textContent = '✓ 已保存';
+        setTimeout(() => { saveHint.textContent = ''; }, 2000);
+    }, 800);
+});
+
+// =============================================
+// Expand/Collapse full content
+// =============================================
+expandBtn.addEventListener('click', () => {
+    isExpanded = !isExpanded;
+    centerCard.classList.toggle('expanded', isExpanded);
+    fullContentEl.classList.toggle('visible', isExpanded);
+    expandBtn.classList.toggle('active', isExpanded);
+    expandBtnText.textContent = isExpanded ? t('collapse_btn') : t('expand_btn');
+
+    if (isExpanded) {
+        renderMath(fullContentEl);
+        // Bind wiki links in both summary and full content
+        bindWikiLinks();
+    }
+
+    // Hide/show related nodes
+    relatedNodes.forEach(n => {
+        n.classList.toggle('hidden-nodes', isExpanded);
+    });
+
+    // Hide/show SVG lines
+    linesSvg.style.opacity = isExpanded ? '0' : '1';
+    linesSvg.style.transition = 'opacity 0.4s';
+
+    // Stop/start float engine
+    if (isExpanded) {
+        stopFloat();
+    } else {
+        repositionNodes();
+    }
+});
+
+// =============================================
+// Wiki links toggle
+// =============================================
+btnWikiLinks.addEventListener('click', () => {
+    wikiLinksEnabled = !wikiLinksEnabled;
+    btnWikiLinks.classList.toggle('active', wikiLinksEnabled);
+    // Apply to current links
+    document.querySelectorAll('.wiki-link').forEach(a => {
+        a.classList.toggle('disabled', !wikiLinksEnabled);
+    });
+});
+
+// =============================================
+// Export
+// =============================================
+function generateMindmap() {
+    const visits = loadVisits();
+    const notes = loadNotes();
+
+    if (visits.length === 0) return '* 尚无浏览记录';
+
+    let md = '# 知识星图 · 思维导图\n\n';
+    md += `> 导出时间：${new Date().toLocaleString('zh-CN')}\n`;
+    md += `> 浏览词条：${visits.length} 个\n\n`;
+    md += '---\n\n';
+
+    // Deduplicate while preserving order
+    const seen = new Set();
+    const orderedVisits = visits.filter(v => {
+        if (seen.has(v.title)) return false;
+        seen.add(v.title);
+        return true;
+    });
+
+    // Build as hierarchical list
+    md += '## 浏览路径\n\n';
+    orderedVisits.forEach((v, i) => {
+        const indent = '  '.repeat(Math.min(i, 3)); // cap indent
+        const note = notes[v.title];
+        const noteTag = note ? ' 📌' : '';
+        md += `${indent}- ${v.title}${noteTag}\n`;
+        if (note) {
+            const noteLines = note.split('\n').filter(l => l.trim());
+            noteLines.forEach(line => {
+                md += `${indent}  - 💭 ${line}\n`;
+            });
+        }
+    });
+
+    md += '\n---\n\n';
+    md += '## 便签汇总\n\n';
+    let hasNotes = false;
+    for (const [title, note] of Object.entries(notes)) {
+        if (note.trim()) {
+            hasNotes = true;
+            md += `### ${title}\n\n${note}\n\n`;
+        }
+    }
+    if (!hasNotes) md += '* 暂无便签\n';
+
+    return md;
+}
+
+btnExport.addEventListener('click', () => {
+    exportPreview.textContent = generateMindmap();
+    exportModal.classList.add('visible');
+});
+
+btnModalCancel.addEventListener('click', () => {
+    exportModal.classList.remove('visible');
+});
+
+exportModal.addEventListener('click', (e) => {
+    if (e.target === exportModal) exportModal.classList.remove('visible');
+});
+
+btnModalDownload.addEventListener('click', () => {
+    const md = generateMindmap();
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `知识星图_${new Date().toISOString().slice(0,10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    exportModal.classList.remove('visible');
+});
+
+// =============================================
+// Background starfield
+// =============================================
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let stars = [];
+let warpActive = false;
+let warpProgress = 0;
+let warpReverse = false;
+let warpTargetX = 0;
+let warpTargetY = 0;
+let warpHasTarget = false;
+// Current interpolated vanishing point (for smooth transition)
+let warpVanX = 0;
+let warpVanY = 0;
+
+function initBgCanvas() {
+    bgCanvas.width = window.innerWidth;
+    bgCanvas.height = window.innerHeight;
+    warpCanvas.width = window.innerWidth;
+    warpCanvas.height = window.innerHeight;
+    stars = [];
+    for (let i = 0; i < 300; i++) {
+        stars.push({
+            x: Math.random() * bgCanvas.width - bgCanvas.width / 2,
+            y: Math.random() * bgCanvas.height - bgCanvas.height / 2,
+            z: Math.random() * 1500 + 1,
+            o: Math.random(),
+        });
+    }
+}
+
+function renderBg() {
+    const w = bgCanvas.width, h = bgCanvas.height;
+    const cx = w / 2, cy = h / 2;
+
+    bgCtx.fillStyle = 'rgba(6, 8, 15, 0.25)';
+    bgCtx.fillRect(0, 0, w, h);
+
+    const speed = warpActive ? (warpReverse ? -25 : 40) : 0.4;
+    // Vanishing point with smooth transition
+    let vanX, vanY;
+    if (warpActive && warpHasTarget) {
+        // Lerp current vanishing point toward screen center (~1s to 90%)
+        warpVanX += (cx - warpVanX) * 0.06;
+        warpVanY += (cy - warpVanY) * 0.06;
+        vanX = warpVanX;
+        vanY = warpVanY;
+    } else {
+        vanX = cx;
+        vanY = cy;
+    }
+
+    for (let s of stars) {
+        s.z -= speed;
+        if (warpReverse && warpActive) {
+            if (s.z > 1500) {
+                s.x = Math.random() * w - vanX;
+                s.y = Math.random() * h - vanY;
+                s.z = 1;
+                s.o = Math.random();
+            }
+        } else {
+            if (s.z <= 0) {
+                s.x = Math.random() * w - vanX;
+                s.y = Math.random() * h - vanY;
+                s.z = 1500;
+                s.o = Math.random();
+            }
+        }
+
+        const sx = (s.x / s.z) * 300 + vanX;
+        const sy = (s.y / s.z) * 300 + vanY;
+
+        if (warpActive) {
+            if (warpReverse) {
+                const pz = s.z + 25;
+                const px = (s.x / pz) * 300 + vanX;
+                const py = (s.y / pz) * 300 + vanY;
+                const brightness = Math.min(1, s.z / 800);
+                bgCtx.strokeStyle = `rgba(255, 180, 60, ${brightness * 0.5})`;
+                bgCtx.lineWidth = brightness * 2;
+                bgCtx.beginPath();
+                bgCtx.moveTo(px, py);
+                bgCtx.lineTo(sx, sy);
+                bgCtx.stroke();
+            } else {
+                const px = (s.x / (s.z + speed)) * 300 + vanX;
+                const py = (s.y / (s.z + speed)) * 300 + vanY;
+                const brightness = Math.min(1, (1500 - s.z) / 500);
+                bgCtx.strokeStyle = `rgba(0, 212, 255, ${brightness * 0.6})`;
+                bgCtx.lineWidth = brightness * 2;
+                bgCtx.beginPath();
+                bgCtx.moveTo(px, py);
+                bgCtx.lineTo(sx, sy);
+                bgCtx.stroke();
+            }
+        } else {
+            const size = Math.max(0.5, (1 - s.z / 1500) * 2.5);
+            bgCtx.fillStyle = `rgba(200, 220, 255, ${s.o * 0.7})`;
+            bgCtx.beginPath();
+            bgCtx.arc(sx, sy, size, 0, Math.PI * 2);
+            bgCtx.fill();
+        }
+    }
+
+    requestAnimationFrame(renderBg);
+}
+
+initBgCanvas();
+renderBg();
+window.addEventListener('resize', () => {
+    initBgCanvas();
+    if (currentData) repositionNodes();
+});
+
+// =============================================
+// Warp animation
+// =============================================
+const warpCtx = warpCanvas.getContext('2d');
+
+function playWarpAnimation(reverse = false, targetX, targetY) {
+    return new Promise(resolve => {
+        warpActive = true;
+        warpReverse = reverse;
+        // Set directional vanishing point
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        if (targetX !== undefined && targetY !== undefined) {
+            warpTargetX = targetX;
+            warpTargetY = targetY;
+            warpHasTarget = true;
+            // Initialize vanishing point at the card (target) position
+            warpVanX = targetX;
+            warpVanY = targetY;
+        } else {
+            warpTargetX = cx;
+            warpTargetY = cy;
+            warpHasTarget = false;
+            warpVanX = cx;
+            warpVanY = cy;
+        }
+        warpProgress = 0;
+        const duration = reverse ? 1000 : 900;
+        const start = Date.now();
+
+        // Calculate directional offset: stage moves toward warp target
+        const dx = warpHasTarget ? (warpTargetX - cx) * 0.3 : 0;
+        const dy = warpHasTarget ? (warpTargetY - cy) * 0.3 : 0;
+
+        // Animate stage: shrink + drift toward target
+        stageEl.style.transition = 'none';
+        requestAnimationFrame(() => {
+            stageEl.style.transition = `transform ${duration}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${duration * 0.3}ms ease-out`;
+            if (reverse) {
+                // Reverse: coming back from zoomed state → settle to center
+                stageEl.style.transform = `translate(0px, 0px) scale(1)`;
+                stageEl.style.opacity = '1';
+            } else {
+                // Forward: drift toward target + shrink
+                stageEl.style.transform = `translate(${dx}px, ${dy}px) scale(0.6)`;
+                stageEl.style.opacity = '0';
+            }
+        });
+
+        // Immediately stop float engine and clear lines to prevent ghosting
+        stopFloat();
+        // Fade out and remove related nodes after a short delay for visual flow
+        relatedNodes.forEach(n => n.classList.add('hidden-nodes'));
+        linesSvg.style.opacity = '0';
+        setTimeout(() => clearRelatedNodes(), reverse ? duration * 0.7 : 100);
+
+        function animate() {
+            warpProgress = (Date.now() - start) / duration;
+
+            if (warpProgress < 1) {
+                warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+                const alpha = Math.sin(warpProgress * Math.PI) * 0.3;
+                const color = reverse ? `rgba(255, 180, 60, ${alpha})` : `rgba(0, 212, 255, ${alpha})`;
+                warpCtx.fillStyle = color;
+                warpCtx.fillRect(0, 0, warpCanvas.width, warpCanvas.height);
+
+                requestAnimationFrame(animate);
+            } else {
+                warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+                // Double-clear to ensure no GPU-cached residue
+                warpCanvas.style.display = 'none';
+                warpCanvas.offsetHeight; // Force reflow
+                warpCanvas.style.display = '';
+                warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+                warpActive = false;
+                warpReverse = false;
+                warpHasTarget = false;
+                // Reset stage transform for next render
+                stageEl.style.transition = 'none';
+                stageEl.style.transform = '';
+                stageEl.style.opacity = '1';
+                resolve();
+            }
+        }
+        animate();
+    });
+}
+
+// =============================================
+// Search
+// =============================================
+let searchTimeout;
+searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => searchSuggestions(searchInput.value), 300);
+});
+searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        suggestionsEl.classList.remove('visible');
+        navigateTo(searchInput.value.trim());
+    }
+});
+searchBtn.addEventListener('click', () => {
+    suggestionsEl.classList.remove('visible');
+    navigateTo(searchInput.value.trim());
+});
+
+async function searchSuggestions(query) {
+    if (!query || query.length < 2) {
+        suggestionsEl.classList.remove('visible');
+        return;
+    }
+    try {
+        const r = await fetch(`${API}/search`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query, limit: 8}),
+        });
+        const data = await r.json();
+        if (data.results && data.results.length > 0) {
+            suggestionsEl.innerHTML = data.results.map(s =>
+                `<div class="suggestion-item" data-title="${s.title}">${s.title}</div>`
+            ).join('');
+            suggestionsEl.querySelectorAll('.suggestion-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    suggestionsEl.classList.remove('visible');
+                    navigateTo(el.dataset.title);
+                });
+            });
+            suggestionsEl.classList.add('visible');
+        } else {
+            suggestionsEl.classList.remove('visible');
+        }
+    } catch(e) {
+        console.error('Search error:', e);
+    }
+}
+
+// =============================================
+// Navigation
+// =============================================
+async function navigateTo(title, skipWarp = false, reverse = false, warpTx, warpTy) {
+    if (!title) return;
+
+    searchInput.value = title;
+    welcomeEl.style.display = 'none';
+
+    if (currentTitle && !skipWarp) {
+        await playWarpAnimation(reverse, warpTx, warpTy);
+    }
+    loadingEl.classList.add('visible');
+
+    try {
+        const [contentRes, exploreRes] = await Promise.all([
+            fetch(`${API}/article-content`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title}),
+            }),
+            fetch(`${API}/explore`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title, depth: 1, max_nodes: MAX_RELATED + 1}),
+            }),
+        ]);
+
+        const contentData = await contentRes.json();
+        const exploreData = await exploreRes.json();
+
+        // Save to history
+        if (currentTitle && currentTitle !== title) {
+            navHistory.push({title: currentTitle, data: currentData});
+            if (navHistory.length > 20) navHistory.shift();
+        }
+
+        currentTitle = title;
+        currentData = {content: contentData, explore: exploreData};
+        currentSummaryHtml = contentData.summary_html || '';
+
+        // Record visit for export
+        recordVisit(title);
+
+        renderView(contentData, exploreData);
+
+    } catch(e) {
+        console.error('Navigate error:', e);
+        loadingEl.classList.remove('visible');
+    }
+}
+
+// =============================================
+// Render
+// =============================================
+function renderView(contentData, exploreData) {
+    // Update center card
+    cardTitle.textContent = contentData.title;
+    cardDepth.textContent = t('card_depth');
+
+    // Summary: HTML with wiki links, or plain text
+    if (wikiLinksEnabled && currentSummaryHtml) {
+        cardSummary.innerHTML = currentSummaryHtml;
+        renderMath(cardSummary);  // Render math in summary too!
+        bindWikiLinks();
+    } else {
+        cardSummary.textContent = contentData.summary || '暂无摘要';
+    }
+
+    // Full content & expand button
+    const fullContentHtml = contentData.full_content_html || '';
+    fullContentText = contentData.full_content || '';
+    if (fullContentText && fullContentText.trim().length > 0) {
+        fullContentEl.innerHTML = fullContentHtml || fullContentText;
+        renderMath(fullContentEl);  // Render math before binding links
+        bindWikiLinks();
+        expandBtn.style.display = 'inline-flex';
+    } else {
+        expandBtn.style.display = 'none';
+        fullContentEl.textContent = '';
+    }
+    // Reset expanded state on new article
+    isExpanded = false;
+    centerCard.classList.remove('expanded');
+    fullContentEl.classList.remove('visible');
+    expandBtn.classList.remove('active');
+    expandBtnText.textContent = t('expand_btn');
+    linesSvg.style.opacity = '1';
+    relatedNodes.forEach(n => n.classList.remove('hidden-nodes'));
+    // Ensure warp canvas is fully cleared
+    if (typeof warpCtx !== 'undefined' && warpCtx) {
+        warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+    }
+
+    // Update image
+    const imageWrap = document.getElementById('card-image-wrap');
+    const imageEl = document.getElementById('card-image');
+    if (contentData.image) {
+        imageEl.src = API + contentData.image;
+        imageWrap.style.display = 'block';
+        imageEl.onerror = () => { imageWrap.style.display = 'none'; };
+    } else {
+        imageWrap.style.display = 'none';
+    }
+
+    // Load sticky note
+    stickyText.value = getNote(currentTitle);
+    saveHint.textContent = '';
+
+    // Show stage
+    stageEl.style.display = 'flex';
+    stageEl.style.opacity = '1';
+    stageEl.style.transform = 'scale(1)';
+    loadingEl.classList.remove('visible');
+
+    // Pick best related links
+    const exploreNodes = (exploreData.nodes || []).slice(1, MAX_RELATED + 1);
+    const relatedLinks = (contentData.related_links || [])
+        .filter(l => l.title !== contentData.title)
+        .slice(0, MAX_RELATED);
+
+    const related = relatedLinks.length > 0 ? relatedLinks : exploreNodes.map(n => ({
+        title: n.title,
+        target: n.titleEncoded || n.title,
+        rank: n.rank !== undefined ? n.rank : 0,
+    }));
+
+    // Clear old nodes (also clears floatState)
+    clearRelatedNodes();
+
+    // Pre-calculate NON-OVERLAPPING target positions for all nodes BEFORE appending
+    const cardRect0 = centerCard.getBoundingClientRect();
+    const topSafe0 = 150;
+    const VW0 = window.innerWidth, VH0 = window.innerHeight;
+    const n = related.length;
+    const prePositions = related.map((link, i) => {
+        const cardW = Math.min(220, Math.max(90, Math.round((link.title || '').length * 13 + 28)));
+        const hotness = (link.rank !== undefined ? link.rank : 0.5);
+        const cardH = Math.round(44 + hotness * 20);
+        // Split nodes to left and right sides of center card
+        const side = i % 2 === 0 ? 1 : -1;
+        const sideIdx = Math.floor(i / 2);
+        const sideTotal = Math.ceil(n / 2);
+        // Vertical: evenly distribute with small random jitter
+        const usableH = VH0 - topSafe0 - 80 - cardH;
+        const slotH = usableH / sideTotal;
+        const targetY = topSafe0 + slotH * sideIdx + slotH * 0.5 - cardH / 2 + (Math.random() - 0.5) * Math.min(slotH * 0.3, 20);
+        // Horizontal: spread in a band with slight random offset
+        const bandW = VW0 * 0.18;
+        const xOffset = Math.random() * bandW;
+        const targetX = side > 0
+            ? cardRect0.right + 50 + xOffset
+            : cardRect0.left - 50 - cardW - xOffset;
+        return { cardW, cardH, targetX, targetY, hotness };
+    });
+
+    // Create new nodes ONE BY ONE with staggered delay
+    related.forEach((link, i) => {
+        const pos = prePositions[i];
+        // Create node element
+        const node = document.createElement('div');
+        node.className = 'related-node';
+        node.innerHTML = `
+            <img class="node-thumb" data-title="${link.title}" alt="" />
+            <div class="node-label">${link.title}</div>
+        `;
+        node.dataset.target = link.target;
+        node.dataset.index = i;
+        node.dataset.hotness = pos.hotness;
+        node.style.width = pos.cardW + 'px';
+        node.style.height = pos.cardH + 'px';
+        node.style.boxShadow = '0 0 10px rgba(0,212,255,0.12)';
+        // Stagger with fast accelerating rhythm
+        const delays = [0,40,90,150,220,300,390,490,600,720,850,990,1140,1300,1470];
+        const delay = i < delays.length ? delays[i] : i * 100;
+        node.style.animationDelay = `${delay/1000}s, ${(delay/1000) + 0.35}s`;
+        node.addEventListener('click', () => {
+            const rect = node.getBoundingClientRect();
+            navigateTo(link.target, false, false, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        });
+        // Pre-set float state for this node
+        floatState[i] = {vx:0, vy:0};
+        const randomFloatY = String((5 + Math.random() * 8).toFixed(1));
+        const randomFloatD = String((2.5 + Math.random() * 2).toFixed(2));
+        node.style.setProperty('--fy', randomFloatY);
+        node.style.setProperty('--fd', randomFloatD);
+        floatState[i].targetX = pos.targetX;
+        floatState[i].targetY = pos.targetY;
+
+        // Stagger append with accelerating rhythm — node appears at its final position
+        const appendDelays = [0,40,90,150,220,300,390,490,600,720,850,990,1140,1300,1470];
+        const appendMs = i < appendDelays.length ? appendDelays[i] : i * 100;
+        setTimeout(() => {
+            node.style.left = pos.targetX + 'px';
+            node.style.top = pos.targetY + 'px';
+            document.body.appendChild(node);
+            relatedNodes.push(node);
+        }, appendMs);
+    });
+
+    // Wait for all nodes to be appended, then draw lines
+    setTimeout(() => {
+        drawLines();
+        // Async: load thumbnails for related nodes
+        loadNodeThumbnails(related);
+    }, (related.length < 15 ? related.length * 100 : 1470) + 400);
+
+    updateBreadcrumb();
+}
+
+// Render LaTeX math formulas (KaTeX) inside a container
+// Handles ZIM Wikipedia raw format: {\displaystyle ...}, {\textstyle ...}, \<tag>...</tag>
+// Hybrid approach: Save wiki-links first, use innerHTML for math rendering, then restore and rebind wiki-links
+function renderMath(container) {
+    if (!container) return;
+    const katexAvailable = (typeof katex !== 'undefined');
+    console.log('[renderMath] Starting, katexAvailable:', katexAvailable);
+
+    // Step 1: Save all existing wiki-links in this container
+    const savedLinks = [];
+    const wikiLinks = container.querySelectorAll('.wiki-link');
+    wikiLinks.forEach((a, idx) => {
+        savedLinks.push({
+            target: a.dataset.target,
+            text: a.textContent,
+            index: idx,
+            bound: a.dataset.bound === 'true'
+        });
+        a.classList.add('math-save-link-' + idx);
+    });
+    console.log('[renderMath] Saved', savedLinks.length, 'wiki-links');
+
+    // Step 2: Render math using innerHTML (this is more reliable for mixed HTML/text)
+    let html = container.innerHTML;
+    console.log('[renderMath] Original HTML length:', html.length);
+    console.log('[renderMath] Original HTML snippet (first 500 chars):', html.substring(0, 500));
+
+    // Helper: render formula with KaTeX
+    function renderFormula(formula, displayMode = true) {
+        try {
+            console.log('[renderMath] Rendering formula (display=' + displayMode + '):', formula.substring(0, 100));
+            if (katexAvailable) {
+                return katex.renderToString(formula, { displayMode, throwOnError: false });
+            } else {
+                return formula.replace(/\\/g, '').replace(/\{/g, '').replace(/\}/g, '');
+            }
+        } catch (e) {
+            console.warn('KaTeX render error:', e);
+            return formula;
+        }
+    }
+
+    // Helper: find position after an HTML tag (skip tag content)
+    function skipTag(str, start) {
+        if (str[start] !== '<') return start;
+        let i = start + 1;
+        while (i < str.length) {
+            if (str[i] === '>') {
+                return i + 1;
+            }
+            i++;
+        }
+        return i;
+    }
+
+    // Pattern 1: {\displaystyle ...} and {\textstyle ...} blocks
+    let result = '', i = 0;
+    let matchCount = 0;
+    while (i < html.length) {
+        if (html[i] === '<') {
+            const tagEnd = skipTag(html, i);
+            result += html.slice(i, tagEnd);
+            i = tagEnd;
+            continue;
+        }
+        
+        const remaining = html.slice(i);
+        const match = remaining.match(/\{\\(display|text)style\s*/);
+        if (!match) {
+            result += html[i];
+            i++;
+            continue;
+        }
+        matchCount++;
+        // Add any characters between i and the match
+        if (match.index > 0) {
+            result += remaining.slice(0, match.index);
+        }
+        const styleStart = i + match.index; // match.index is within remaining, add i
+        let depth = 1;
+        let j = i + match[0].length;
+        
+        while (j < html.length && depth > 0) {
+            if (html[j] === '<') {
+                j = skipTag(html, j);
+                continue;
+            }
+            if (html[j] === '{') depth++;
+            else if (html[j] === '}') depth--;
+            j++;
+        }
+        
+        const fullBlock = html.slice(styleStart, j);
+        console.log('[renderMath] Found math block #' + matchCount + ':', fullBlock.substring(0, 150));
+        const innerContent = fullBlock
+            .replace(/^\{\\(display|text)style\s*/, '')
+            .replace(/\}$/,'');
+        
+        const isDisplay = match[1] === 'display';
+        result += renderFormula(innerContent, isDisplay);
+        i = j;
+    }
+    html = result;
+    console.log('[renderMath] Found', matchCount, ' {\displaystyle...} blocks');
+
+    // Pattern 2: $$ ... $$ (display math)
+    let dollarMatchCount = 0;
+    html = html.replace(/\$\$([\s\S]+?)\$\$/g, (m, formula) => {
+        dollarMatchCount++;
+        return renderFormula(formula.trim(), true);
+    });
+    if (dollarMatchCount > 0) console.log('[renderMath] Found', dollarMatchCount, '$$...$$ blocks');
+
+    // Pattern 3: \[ ... \] (display math)
+    let bracketMatchCount = 0;
+    html = html.replace(/\\\[([\s\S]+?)\\\]/g, (m, formula) => {
+        bracketMatchCount++;
+        return renderFormula(formula.trim(), true);
+    });
+    if (bracketMatchCount > 0) console.log('[renderMath] Found', bracketMatchCount, '\\[...\\] blocks');
+
+    // Pattern 4: \( ... \) (inline math)
+    let parenMatchCount = 0;
+    html = html.replace(/\\\(([\s\S]+?)\\\)/g, (m, formula) => {
+        parenMatchCount++;
+        return renderFormula(formula.trim(), false);
+    });
+    if (parenMatchCount > 0) console.log('[renderMath] Found', parenMatchCount, '\\(...\\) blocks');
+
+    console.log('[renderMath] Final HTML length:', html.length);
+    console.log('[renderMath] Final HTML snippet (first 500 chars):', html.substring(0, 500));
+
+    // Update container with rendered math
+    container.innerHTML = html;
+    console.log('[renderMath] Done, container updated');
+
+    // Step 3: Recreate and rebind wiki-links using the saved data
+    savedLinks.forEach((saved, idx) => {
+        const existingLinks = container.querySelectorAll('.wiki-link[data-target="' + CSS.escape(saved.target) + '"]');
+        let found = false;
+        existingLinks.forEach(a => {
+            if (a.textContent.trim() === saved.text.trim()) {
+                found = true;
+            }
+        });
+    });
+}
+
+// Bind click on wiki links inside card summary and full content
+function bindWikiLinks() {
+    const links = document.querySelectorAll('.wiki-link');
+    console.log('[bindWikiLinks] Found', links.length, 'wiki-link elements');
+    links.forEach(a => {
+        // Force re-bind even if already bound (in case DOM was replaced)
+        // Clear any existing listener by cloning and replacing the node
+        const clone = a.cloneNode(true);
+        clone.dataset.bound = 'true';
+        console.log('[bindWikiLinks] (Re-)Binding:', clone.dataset.target, clone.textContent);
+        
+        if (!wikiLinksEnabled) clone.classList.add('disabled');
+        else clone.classList.remove('disabled');
+        
+        clone.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!wikiLinksEnabled) return;
+            const target = clone.dataset.target;
+            if (target) navigateTo(target);
+        });
+        
+        a.parentNode.replaceChild(clone, a);
+    });
+}
+
+// Async: batch-load thumbnails for related nodes
+async function loadNodeThumbnails(related) {
+    if (!related || related.length === 0) return;
+    const titles = related.map(r => r.title);
+    try {
+        const res = await fetch(`${API}/thumbnails`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({titles}),
+        });
+        const data = await res.json();
+        const thumbs = data.thumbnails || {};
+        // Fill in thumbnails on existing nodes
+        relatedNodes.forEach(node => {
+            const title = node.querySelector('.node-thumb')?.dataset.title;
+            if (title && thumbs[title]) {
+                const img = node.querySelector('.node-thumb');
+                if (img) {
+                    img.src = API + thumbs[title];
+                    img.onload = () => img.classList.add('loaded');
+                    img.onerror = () => { img.style.display = 'none'; };
+                }
+            } else {
+                // No thumbnail — hide the placeholder
+                const img = node.querySelector('.node-thumb');
+                if (img) img.style.display = 'none';
+            }
+        });
+    } catch(e) {
+        console.warn('Thumbnail load failed:', e);
+        // Hide all thumb placeholders on failure
+        relatedNodes.forEach(node => {
+            const img = node.querySelector('.node-thumb');
+            if (img) img.style.display = 'none';
+        });
+    }
+}
+
+function clearRelatedNodes() {
+    stopFloat();
+    // 关键：真正从 DOM 移除节点，否则会累积
+    relatedNodes.forEach(n => {
+        if (n.parentNode) n.parentNode.removeChild(n);
+    });
+    relatedNodes = [];
+    Object.keys(floatState).forEach(k => delete floatState[k]);
+    // Preserve <defs> in SVG
+    const defs = document.getElementById('svg-defs');
+    while (linesSvg.firstChild) linesSvg.removeChild(linesSvg.firstChild);
+    if (defs) linesSvg.appendChild(defs);
+}
+
+
+// =============================================
+// 自由浮动物理引擎
+// =============================================
+let floatActive = false;
+let floatRafId = null;
+// 每个节点的物理状态
+const floatState = {}; // node.dataset.index → {x, y, vx, vy, targetX, targetY}
+
+function initFloatPositions() {
+    const VW = window.innerWidth;
+    const VH = window.innerHeight;
+    const n = relatedNodes.length;
+    if (n === 0) return;
+
+    const cx = VW / 2;
+    const cy = VH / 2;
+
+    // 中心卡片占据区域（左右不放置节点）
+    const cardW = 440;   // 中心卡片宽度+margin
+    const cardH = 200;   // 中心卡片高度+margin
+    const gapX = 60;     // 距离卡片的间隙
+
+    // 左侧可用区域：从卡片左边往左
+    const leftStartX = 20;
+    const leftEndX   = cx - cardW/2 - gapX;
+    // 右侧可用区域：从卡片右边往右
+    const rightStartX = cx + cardW/2 + gapX;
+    const rightEndX   = VW - 180;
+
+    // 垂直范围：避开顶部搜索栏
+    const topY = 170;
+    const bottomY = VH - 80;
+
+    // 分配节点：左一半，右一半
+    const halfN = Math.ceil(n / 2);
+    const leftCount = Math.min(halfN, n);
+    const rightCount = n - leftCount;
+
+    const positions = [];
+
+    // 左侧节点
+    for (let i = 0; i < leftCount; i++) {
+        const t = leftCount > 1 ? i / (leftCount - 1) : 0.5;
+        const x = leftStartX + Math.random() * (leftEndX - leftStartX - 160);
+        const y = topY + t * (bottomY - topY - 60) + (Math.random() - 0.5) * 30;
+        positions.push({ x, y });
+    }
+
+    // 右侧节点
+    for (let i = 0; i < rightCount; i++) {
+        const t = rightCount > 1 ? i / (rightCount - 1) : 0.5;
+        const x = rightStartX + Math.random() * (rightEndX - rightStartX);
+        const y = topY + t * (bottomY - topY - 60) + (Math.random() - 0.5) * 30;
+        positions.push({ x, y });
+    }
+
+    relatedNodes.forEach((node, i) => {
+        const idx = node.dataset.index;
+        const nw = 160, nh = 62;
+        const pos = positions[i] || { x: 50, y: cy };
+        let initX = pos.x;
+        let initY = pos.y;
+
+        initX = Math.max(10, Math.min(VW - nw - 10, initX));
+        initY = Math.max(topY, Math.min(VH - nh - 10, initY));
+
+        floatState[idx] = { x: initX, y: initY, vx: 0, vy: 0 };
+        node.style.left = initX + 'px';
+        node.style.top  = initY + 'px';
+    });
+
+    floatActive = true;
+    if (floatRafId) cancelAnimationFrame(floatRafId);
+    floatTick();
+}
+
+function floatTick() {
+    if (!floatActive) return;
+    const VW = window.innerWidth;
+    const VH = window.innerHeight;
+    const topSafe = 150;
+    const DAMP = 0.80;
+    const DRIFT = 0.04;
+
+    // 中心卡片中心（屏幕正中心）
+    const cpx = VW / 2;
+    const cpy = VH / 2;
+    // 中心卡片安全区半径（宽度400+高度200，取最大值+边距）
+    const SAFE_R = 220;
+
+    // 先收集所有节点最新尺寸
+    const sizes = relatedNodes.map(n => ({ w: n.offsetWidth || 160, h: n.offsetHeight || 60 }));
+
+    // 应用所有力，更新位置
+    relatedNodes.forEach((node, ki) => {
+        const idx = node.dataset.index;
+        const st = floatState[idx];
+        if (!st) return;
+        const nw = sizes[ki].w;
+        const nh = sizes[ki].h;
+
+        // 微弱随机力（仅微调）
+        st.vx += (Math.random() - 0.5) * DRIFT;
+        st.vy += (Math.random() - 0.5) * DRIFT * 0.4;
+
+        // 速度衰减
+        st.vx *= DAMP;
+        st.vy *= DAMP;
+
+        // 中心卡片排斥力：只在进入卡片安全区时推开
+        const dx = (st.x + nw / 2) - cpx;
+        const dy = (st.y + nh / 2) - cpy;
+        // 用椭圆判断是否在卡片区域内（卡片约 220x110 + margin）
+        const cardRX = 230, cardRY = 120;
+        const ex = dx / cardRX, ey = dy / cardRY;
+        const ellipseDist = Math.sqrt(ex * ex + ey * ey);
+        if (ellipseDist < 1.0) {
+            // 在卡片椭圆内，强力推出
+            const force = (1.0 - ellipseDist) * 3.5;
+            st.vx += (dx / (Math.sqrt(dx*dx+dy*dy)||1)) * force;
+            st.vy += (dy / (Math.sqrt(dx*dx+dy*dy)||1)) * force;
+        }
+
+        // 速度上限，防止爆炸
+        const speed = Math.sqrt(st.vx * st.vx + st.vy * st.vy);
+        const MAX_SPD = 6;
+        if (speed > MAX_SPD) { st.vx = (st.vx / speed) * MAX_SPD; st.vy = (st.vy / speed) * MAX_SPD; }
+
+        // 更新位置
+        st.x += st.vx;
+        st.y += st.vy;
+
+        // 边界硬约束
+        if (st.x < 8) { st.x = 8; st.vx = Math.abs(st.vx) * 0.4; }
+        if (st.y < topSafe + 10) { st.y = topSafe + 10; st.vy = Math.abs(st.vy) * 0.4; }
+        if (st.x > VW - nw - 8) { st.x = VW - nw - 8; st.vx = -Math.abs(st.vx) * 0.4; }
+        if (st.y > VH - nh - 8) { st.y = VH - nh - 8; st.vy = -Math.abs(st.vy) * 0.4; }
+
+        node.style.left = st.x + 'px';
+        node.style.top = st.y + 'px';
+    });
+
+    // 强碰撞分离（5轮迭代，足够分开）
+    for (let pass = 0; pass < 5; pass++) {
+        for (let i = 0; i < relatedNodes.length; i++) {
+            for (let j = i + 1; j < relatedNodes.length; j++) {
+                const ni = relatedNodes[i], nj = relatedNodes[j];
+                const si = floatState[ni.dataset.index];
+                const sj = floatState[nj.dataset.index];
+                if (!si || !sj) continue;
+                const siW = sizes[i].w, siH = sizes[i].h;
+                const sjW = sizes[j].w, sjH = sizes[j].h;
+                const dx = (si.x + siW / 2) - (sj.x + sjW / 2);
+                const dy = (si.y + siH / 2) - (sj.y + sjH / 2);
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const minDist = (siW + sjW) / 2 + 32;
+                const minDistH = (siH + sjH) / 2 + 24;
+                const reqDist = Math.max(minDist, minDistH);
+                if (dist < reqDist && dist > 0.1) {
+                    const push = (reqDist - dist) * 1.2; // 推力 1.2（强）
+                    const nx = dx / dist, ny = dy / dist;
+                    si.x += nx * push; si.y += ny * push;
+                    sj.x -= nx * push; sj.y -= ny * push;
+                    si.vx += nx * push * 0.3;
+                    si.vy += ny * push * 0.3;
+                    sj.vx -= nx * push * 0.3;
+                    sj.vy -= ny * push * 0.3;
+                }
+            }
+        }
+    }
+
+    drawLines();
+    floatRafId = requestAnimationFrame(floatTick);
+}
+
+function stopFloat() {
+    floatActive = false;
+    if (floatRafId) cancelAnimationFrame(floatRafId);
+}
+
+function repositionNodes() {
+    if (relatedNodes.length === 0) return;
+    initFloatPositions();
+}
+
+function drawLines() {
+    if (!linesSvg || relatedNodes.length === 0) return;
+    // Preserve <defs>, only clear paths
+    const defs = document.getElementById('svg-defs');
+    while (linesSvg.firstChild) linesSvg.removeChild(linesSvg.firstChild);
+    if (defs) linesSvg.appendChild(defs);
+
+    const cardRect = centerCard.getBoundingClientRect();
+    const cx = cardRect.left + cardRect.width / 2;
+    const cy = cardRect.top + cardRect.height / 2;
+
+    relatedNodes.forEach((node, i) => {
+        const nx = node.offsetLeft + node.offsetWidth / 2;
+        const ny = node.offsetTop + node.offsetHeight / 2;
+
+        const midX = (cx + nx) / 2;
+        const midY = (cy + ny) / 2;
+        const dx = nx - cx, dy = ny - cy;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const curve = dist * 0.18;
+        const cpX = midX - dy / dist * curve;
+        const cpY = midY + dx / dist * curve;
+
+        const hotness = parseFloat(node.dataset.hotness || '0.5');
+        // 统一虚线颜色与中心卡片边框一致
+        const lineColor = 'rgba(0,200,255,0.35)';
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const d = 'M ' + cx + ' ' + cy + ' Q ' + cpX + ' ' + cpY + ' ' + nx + ' ' + ny;
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', lineColor);
+        path.setAttribute('stroke-width', '1.2');
+        path.setAttribute('stroke-dasharray', '6 8');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('opacity', '0.3');
+        path.setAttribute('filter', 'url(#lineGlow)');
+        
+        const animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+        animate.setAttribute('attributeName', 'stroke-dashoffset');
+        animate.setAttribute('values', '0; -14');
+        animate.setAttribute('dur', '1.5s');
+        animate.setAttribute('repeatCount', 'indefinite');
+        animate.setAttribute('calcMode', 'linear');
+        path.appendChild(animate);
+        
+        linesSvg.appendChild(path);
+    });
+}
+
+function updateBreadcrumb() {
+    if (navHistory.length === 0) {
+        breadcrumbEl.style.display = 'none';
+        return;
+    }
+    breadcrumbEl.style.display = 'flex';
+    const homeSpan = `<span class="breadcrumb-item" data-title="__home__" data-i18n="breadcrumb_home">首页</span>`;
+    const items = navHistory.slice(-5).map(h =>
+        `<span class="breadcrumb-item" data-title="${h.title}">${h.title}</span>`
+    );
+    items.unshift(homeSpan);
+    items.push(`<span class="breadcrumb-item current">${currentTitle}</span>`);
+    breadcrumbEl.innerHTML = items.join('<span class="breadcrumb-sep">›</span>');
+
+    // Apply i18n to home item
+    const homeEl = breadcrumbEl.querySelector('[data-i18n="breadcrumb_home"]');
+    if (homeEl) homeEl.textContent = t('breadcrumb_home');
+
+    breadcrumbEl.querySelectorAll('.breadcrumb-item:not(.current)').forEach(el => {
+        el.addEventListener('click', () => {
+            const title = el.dataset.title;
+            const idx = navHistory.findIndex(h => h.title === title);
+            if (idx >= 0) {
+                navHistory = navHistory.slice(0, idx);
+                navigateTo(title, false, true);
+            }
+        });
+    });
+}
+
+// Redraw lines on scroll/resize
+window.addEventListener('resize', () => {
+    if (relatedNodes.length > 0) repositionNodes();
+});
+
+// Click outside to close suggestions
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-bar') && !e.target.closest('.search-suggestions')) {
+        suggestionsEl.classList.remove('visible');
+    }
+});
+
+// =============================================
+// ZIM file panel & load modal
+// =============================================
+
+function loadZimState() {
+    // Don't auto-load on startup; user must click "载入ZIM文件"
+}
+
+async function refreshZimPanel() {
+    try {
+        var r = await fetch(API + '/archive-info');
+        if (r.ok) {
+            var info = await r.json();
+            var fname = savedFileName();
+            zimNameEl.textContent = fname || info.title || '未知';
+            zimMetaEl.innerHTML =
+                '<span>词条：' + (info.article_count ? info.article_count.toLocaleString() : '—') + '</span>' +
+                '<span style="margin-left:8px">日期：' + (info.date || '—') + '</span>' +
+                '<span style="margin-left:8px">语言：' + (info.language || '—') + '</span>';
+            zimPanel.style.display = 'flex';
+        }
+    } catch(e) {
+        zimPanel.style.display = 'none';
+    }
+}
+
+function savedFileName() {
+    var p = localStorage.getItem(ZIM_PATH_KEY) || '';
+    return p.split(/[/\\]/).pop() || '';
+}
+
+// Open ZIM modal
+btnLoadZim.addEventListener('click', function() {
+    zimErrorEl.classList.remove('visible');
+    zimErrorEl.textContent = '';
+    zimModal.classList.add('visible');
+    var saved = localStorage.getItem(ZIM_PATH_KEY);
+    if (saved) zimPathInput.value = saved;
+    zimPathInput.focus();
+});
+
+// Close modal
+btnZimCancel.addEventListener('click', function() {
+    zimModal.classList.remove('visible');
+});
+zimModal.addEventListener('click', function(e) {
+    if (e.target === zimModal) zimModal.classList.remove('visible');
+});
+zimPathInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') btnZimLoad.click();
+});
+
+// Browse button — call backend native file dialog
+btnBrowse.addEventListener('click', async function() {
+    btnBrowse.disabled = true;
+    btnBrowse.textContent = '选择中…';
+    try {
+        var r = await fetch(API + '/browse-zim');
+        var data = await r.json();
+        if (data.path) {
+            zimPathInput.value = data.path;
+        }
+    } catch(e) {
+        zimErrorEl.textContent = '浏览失败：' + e.message;
+        zimErrorEl.classList.add('visible');
+    } finally {
+        btnBrowse.disabled = false;
+        btnBrowse.textContent = '浏览';
+    }
+});
+
+// Load ZIM file
+btnZimLoad.addEventListener('click', async function() {
+    var path = zimPathInput.value.trim();
+    if (!path) {
+        zimErrorEl.textContent = '请输入 ZIM 文件路径';
+        zimErrorEl.classList.add('visible');
+        return;
+    }
+    if (!path.toLowerCase().endsWith('.zim')) {
+        zimErrorEl.textContent = '文件扩展名必须是 .zim';
+        zimErrorEl.classList.add('visible');
+        return;
+    }
+    btnZimLoad.disabled = true;
+    btnZimLoad.textContent = '加载中…';
+    zimErrorEl.classList.remove('visible');
+    try {
+        var r = await fetch(API + '/reload-zim', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({zim_path: path}),
+        });
+        var data = await r.json();
+        if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+
+        localStorage.setItem(ZIM_PATH_KEY, path);
+        var fname = path.split(/[/\\]/).pop();
+        zimNameEl.textContent = fname;
+        zimMetaEl.innerHTML =
+            '<span>词条：' + ((data.article_count || 0).toLocaleString ? data.article_count.toLocaleString() : '—') + '</span>' +
+            '<span style="margin-left:8px">日期：' + (data.date || '—') + '</span>' +
+            '<span style="margin-left:8px">语言：' + (data.language || '—') + '</span>';
+        zimPanel.style.display = 'flex';
+        zimModal.classList.remove('visible');
+        // Reset view
+        welcomeEl.style.display = 'block';
+        stageEl.style.display = 'none';
+        clearRelatedNodes();
+        navHistory = [];
+        currentTitle = '';
+        breadcrumbEl.style.display = 'none';
+        searchInput.value = '';
+    } catch(e) {
+        zimErrorEl.textContent = '加载失败：' + e.message;
+        zimErrorEl.classList.add('visible');
+    } finally {
+        btnZimLoad.disabled = false;
+        btnZimLoad.textContent = '加载文件';
+    }
+});
+
+// Copyright tooltip
+var tipTimeout;
+copyrightText.addEventListener('mouseenter', function() {
+    clearTimeout(tipTimeout);
+    copyrightTip.classList.add('visible');
+});
+copyrightText.addEventListener('mouseleave', function() {
+    tipTimeout = setTimeout(function() { copyrightTip.classList.remove('visible'); }, 200);
+});
+copyrightTip.addEventListener('mouseenter', function() { clearTimeout(tipTimeout); });
+copyrightTip.addEventListener('mouseleave', function() {
+    tipTimeout = setTimeout(function() { copyrightTip.classList.remove('visible'); }, 200);
+});
+
+// Init ZIM panel on load
+loadZimState();
+
+
+
+
+// Initial state
+loadingEl.classList.remove('visible');
+</script>
+
+</body>
+</html>
