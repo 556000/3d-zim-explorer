@@ -2,7 +2,7 @@
 
 > 一个基于 3D 星图可视化的维基百科知识探索器，将词条之间的关系以星空连线的方式呈现，支持时空穿梭动画、LaTeX 数学公式渲染和多语言界面。
 
-![版本](https://img.shields.io/badge/版本-0.95-blue)
+![版本](https://img.shields.io/badge/版本-0.951-blue)
 ![协议](https://img.shields.io/badge/协议-GPL%20v3-green)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![前端](https://img.shields.io/badge/前端-Three.js-orange)
@@ -115,6 +115,27 @@ python server.py
 GitHub：https://github.com/556000/3d-zim-explorer
 
 Gitee：https://gitee.com/xarker/3d-zim-explorer
+
+---
+
+## 📋 更新日志
+
+### v0.951 (2026-04-22)
+
+- 🔧 **修复 renderMath 链路丢失**：采用 TOKEN 占位符机制，彻底解决 KaTeX 渲染时破坏 `.wiki-link` DOM 结构的问题
+- ⚡ **重构物理引擎碰撞检测**：引入空间哈希网格（SpatialGrid），碰撞复杂度从 O(n²) 降至 O(n)；迭代改为能量阈值提前终止；DRIFT 与 devicePixelRatio 挂钩
+- 🧹 **完善内存管理**：`clearRelatedNodes` 强制中止缩略图请求并清除回调；`loadNodeThumbnails` 增加 stale 检测和 one-shot 回调防止 DOM 泄漏
+- 🎨 **动态连线**：SVG 路径池 + 每帧仅更新 `d` 属性，零 DOM 删建
+- 🪟 **响应式 repositionNodes**：窗口 resize 时 lerp 40% 插值平滑过渡，不再位置跳变
+
+### v0.95 (2026-04-22)
+
+- 🎉 初始发布版本
+- 3D 知识星图可视化
+- 时空穿梭动画
+- KaTeX 数学公式渲染
+- 多语言界面（简/繁/英）
+- 导航面包屑 + 思路导出
 
 ---
 

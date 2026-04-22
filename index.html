@@ -857,7 +857,7 @@
         </div>
         <div class="tip-row">
             <span class="tip-key" data-i18n="zim_tip_version">项目版本</span>
-            <span class="tip-value">0.95</span>
+            <span class="tip-value">0.951</span>
         </div>
         <div class="tip-sep"></div>
         <div class="tip-license" data-i18n="zim_tip_license">
@@ -987,7 +987,7 @@ const I18N = {
         zim_tip_contact: '联系',
         zim_tip_contact_val: '12097652@QQ.com',
         zim_tip_version: '项目版本',
-        zim_tip_version_val: '0.95',
+        zim_tip_version_val: '0.951',
         zim_tip_license: '本项目遵守 GNU GPL v3 开源协议 · 感谢 Kiwix 提供 ZIM 文件格式与离线维基百科解决方案 · 维基百科内容采用 CC BY-SA 3.0 许可',
     },
     'zh-TW': {
@@ -1025,7 +1025,7 @@ const I18N = {
         zim_tip_contact: '聯繫',
         zim_tip_contact_val: '12097652@QQ.com',
         zim_tip_version: '項目版本',
-        zim_tip_version_val: '0.95',
+        zim_tip_version_val: '0.951',
         zim_tip_license: '本項目遵守 GNU GPL v3 開源協議 · 感謝 Kiwix 提供 ZIM 文件格式與離線維基百科解決方案 · 維基百科內容採用 CC BY-SA 3.0 許可',
     },
     'en': {
@@ -1063,7 +1063,7 @@ const I18N = {
         zim_tip_contact: 'Contact',
         zim_tip_contact_val: '12097652@QQ.com',
         zim_tip_version: 'Version',
-        zim_tip_version_val: '0.95',
+        zim_tip_version_val: '0.951',
         zim_tip_license: 'This project is licensed under GNU GPL v3 · Thanks to Kiwix for ZIM file format and offline Wikipedia solutions · Wikipedia content under CC BY-SA 3.0',
     }
 };
@@ -1198,9 +1198,7 @@ expandBtn.addEventListener('click', () => {
     expandBtnText.textContent = isExpanded ? t('collapse_btn') : t('expand_btn');
 
     if (isExpanded) {
-        renderMath(fullContentEl);
-        // Bind wiki links in both summary and full content
-        bindWikiLinks();
+        renderMath(fullContentEl);  // renderMath internally calls bindWikiLinks()
     }
 
     // Hide/show related nodes
@@ -1421,7 +1419,10 @@ initBgCanvas();
 renderBg();
 window.addEventListener('resize', () => {
     initBgCanvas();
-    if (currentData) repositionNodes();
+    if (currentData && relatedNodes.length > 0) {
+        // Smooth reposition on resize instead of full re-init
+        repositionNodes();
+    }
 });
 
 // =============================================
@@ -1625,8 +1626,7 @@ function renderView(contentData, exploreData) {
     // Summary: HTML with wiki links, or plain text
     if (wikiLinksEnabled && currentSummaryHtml) {
         cardSummary.innerHTML = currentSummaryHtml;
-        renderMath(cardSummary);  // Render math in summary too!
-        bindWikiLinks();
+        renderMath(cardSummary);  // renderMath internally calls bindWikiLinks()
     } else {
         cardSummary.textContent = contentData.summary || '暂无摘要';
     }
@@ -1636,8 +1636,7 @@ function renderView(contentData, exploreData) {
     fullContentText = contentData.full_content || '';
     if (fullContentText && fullContentText.trim().length > 0) {
         fullContentEl.innerHTML = fullContentHtml || fullContentText;
-        renderMath(fullContentEl);  // Render math before binding links
-        bindWikiLinks();
+        renderMath(fullContentEl);  // renderMath internally calls bindWikiLinks()
         expandBtn.style.display = 'inline-flex';
     } else {
         expandBtn.style.display = 'none';
@@ -1773,43 +1772,39 @@ function renderView(contentData, exploreData) {
 }
 
 // Render LaTeX math formulas (KaTeX) inside a container
-// Handles ZIM Wikipedia raw format: {\displaystyle ...}, {\textstyle ...}, \<tag>...</tag>
-// Hybrid approach: Save wiki-links first, use innerHTML for math rendering, then restore and rebind wiki-links
+// Handles ZIM Wikipedia raw format: {\displaystyle ...}, {\textstyle ...}, $$...$$, \[...\], \(...\)
+// Uses TOKEN placeholder approach: save wiki-links → replace with tokens → render math → restore links
 function renderMath(container) {
     if (!container) return;
     const katexAvailable = (typeof katex !== 'undefined');
-    console.log('[renderMath] Starting, katexAvailable:', katexAvailable);
 
-    // Step 1: Save all existing wiki-links in this container
+    // ── Step 1: Save wiki-links and replace with unique TOKEN placeholders ──
     const savedLinks = [];
-    const wikiLinks = container.querySelectorAll('.wiki-link');
-    wikiLinks.forEach((a, idx) => {
-        savedLinks.push({
-            target: a.dataset.target,
-            text: a.textContent,
-            index: idx,
-            bound: a.dataset.bound === 'true'
-        });
-        a.classList.add('math-save-link-' + idx);
-    });
-    console.log('[renderMath] Saved', savedLinks.length, 'wiki-links');
-
-    // Step 2: Render math using innerHTML (this is more reliable for mixed HTML/text)
+    const TOKEN_PFX = '\x00WIKILINK';
     let html = container.innerHTML;
-    console.log('[renderMath] Original HTML length:', html.length);
-    console.log('[renderMath] Original HTML snippet (first 500 chars):', html.substring(0, 500));
+
+    // Walk all <a class="wiki-link"> and replace each with a unique token
+    // We do this on the raw HTML string to preserve position precisely
+    const linkRegex = /<a\s+class="wiki-link"\s+data-target="([^"]*)"\s*>([^<]*)<\/a>/g;
+    let linkIdx = 0;
+    html = html.replace(linkRegex, (fullMatch, target, text) => {
+        const token = TOKEN_PFX + linkIdx + '\x00';
+        savedLinks.push({ token, target, text });
+        linkIdx++;
+        return token;
+    });
+
+    // ── Step 2: Render math formulas (now safe — no wiki-link HTML to corrupt) ──
 
     // Helper: render formula with KaTeX
     function renderFormula(formula, displayMode = true) {
         try {
-            console.log('[renderMath] Rendering formula (display=' + displayMode + '):', formula.substring(0, 100));
             if (katexAvailable) {
                 return katex.renderToString(formula, { displayMode, throwOnError: false });
             } else {
                 return formula.replace(/\\/g, '').replace(/\{/g, '').replace(/\}/g, '');
             }
         } catch (e) {
-            console.warn('KaTeX render error:', e);
             return formula;
         }
     }
@@ -1819,17 +1814,15 @@ function renderMath(container) {
         if (str[start] !== '<') return start;
         let i = start + 1;
         while (i < str.length) {
-            if (str[i] === '>') {
-                return i + 1;
-            }
+            if (str[i] === '>') return i + 1;
             i++;
         }
         return i;
     }
 
     // Pattern 1: {\displaystyle ...} and {\textstyle ...} blocks
+    // Walk char-by-char to respect HTML tag boundaries and depth
     let result = '', i = 0;
-    let matchCount = 0;
     while (i < html.length) {
         if (html[i] === '<') {
             const tagEnd = skipTag(html, i);
@@ -1837,7 +1830,6 @@ function renderMath(container) {
             i = tagEnd;
             continue;
         }
-        
         const remaining = html.slice(i);
         const match = remaining.match(/\{\\(display|text)style\s*/);
         if (!match) {
@@ -1845,79 +1837,47 @@ function renderMath(container) {
             i++;
             continue;
         }
-        matchCount++;
-        // Add any characters between i and the match
         if (match.index > 0) {
             result += remaining.slice(0, match.index);
         }
-        const styleStart = i + match.index; // match.index is within remaining, add i
-        let depth = 1;
-        let j = i + match[0].length;
-        
+        const styleStart = i + match.index;
+        let depth = 1, j = i + match[0].length;
         while (j < html.length && depth > 0) {
-            if (html[j] === '<') {
-                j = skipTag(html, j);
-                continue;
-            }
+            if (html[j] === '<') { j = skipTag(html, j); continue; }
             if (html[j] === '{') depth++;
             else if (html[j] === '}') depth--;
             j++;
         }
-        
         const fullBlock = html.slice(styleStart, j);
-        console.log('[renderMath] Found math block #' + matchCount + ':', fullBlock.substring(0, 150));
         const innerContent = fullBlock
             .replace(/^\{\\(display|text)style\s*/, '')
-            .replace(/\}$/,'');
-        
+            .replace(/\}$/, '');
         const isDisplay = match[1] === 'display';
         result += renderFormula(innerContent, isDisplay);
         i = j;
     }
     html = result;
-    console.log('[renderMath] Found', matchCount, ' {\displaystyle...} blocks');
 
     // Pattern 2: $$ ... $$ (display math)
-    let dollarMatchCount = 0;
-    html = html.replace(/\$\$([\s\S]+?)\$\$/g, (m, formula) => {
-        dollarMatchCount++;
-        return renderFormula(formula.trim(), true);
-    });
-    if (dollarMatchCount > 0) console.log('[renderMath] Found', dollarMatchCount, '$$...$$ blocks');
+    html = html.replace(/\$\$([\s\S]+?)\$\$/g, (m, formula) => renderFormula(formula.trim(), true));
 
     // Pattern 3: \[ ... \] (display math)
-    let bracketMatchCount = 0;
-    html = html.replace(/\\\[([\s\S]+?)\\\]/g, (m, formula) => {
-        bracketMatchCount++;
-        return renderFormula(formula.trim(), true);
-    });
-    if (bracketMatchCount > 0) console.log('[renderMath] Found', bracketMatchCount, '\\[...\\] blocks');
+    html = html.replace(/\\\[([\s\S]+?)\\\]/g, (m, formula) => renderFormula(formula.trim(), true));
 
     // Pattern 4: \( ... \) (inline math)
-    let parenMatchCount = 0;
-    html = html.replace(/\\\(([\s\S]+?)\\\)/g, (m, formula) => {
-        parenMatchCount++;
-        return renderFormula(formula.trim(), false);
+    html = html.replace(/\\\(([\s\S]+?)\\\)/g, (m, formula) => renderFormula(formula.trim(), false));
+
+    // ── Step 3: Restore wiki-links from TOKEN placeholders ──
+    savedLinks.forEach(saved => {
+        const rebuilt = '<a class="wiki-link" data-target="' + saved.target + '">' + saved.text + '</a>';
+        html = html.split(saved.token).join(rebuilt);
     });
-    if (parenMatchCount > 0) console.log('[renderMath] Found', parenMatchCount, '\\(...\\) blocks');
 
-    console.log('[renderMath] Final HTML length:', html.length);
-    console.log('[renderMath] Final HTML snippet (first 500 chars):', html.substring(0, 500));
-
-    // Update container with rendered math
+    // Write back to DOM
     container.innerHTML = html;
-    console.log('[renderMath] Done, container updated');
 
-    // Step 3: Recreate and rebind wiki-links using the saved data
-    savedLinks.forEach((saved, idx) => {
-        const existingLinks = container.querySelectorAll('.wiki-link[data-target="' + CSS.escape(saved.target) + '"]');
-        let found = false;
-        existingLinks.forEach(a => {
-            if (a.textContent.trim() === saved.text.trim()) {
-                found = true;
-            }
-        });
-    });
+    // Re-bind click handlers on all wiki-links
+    bindWikiLinks();
 }
 
 // Bind click on wiki links inside card summary and full content
@@ -1946,9 +1906,12 @@ function bindWikiLinks() {
 }
 
 // Async: batch-load thumbnails for related nodes
+// Uses AbortController + guard checks to prevent memory leaks from stale callbacks
 async function loadNodeThumbnails(related) {
     if (!related || related.length === 0) return;
     const titles = related.map(r => r.title);
+    // Capture current node count for stale-check
+    const nodeCountAtCall = relatedNodes.length;
     try {
         const res = await fetch(`${API}/thumbnails`, {
             method: 'POST',
@@ -1957,25 +1920,33 @@ async function loadNodeThumbnails(related) {
         });
         const data = await res.json();
         const thumbs = data.thumbnails || {};
-        // Fill in thumbnails on existing nodes
+        // Stale check: if nodes were cleared while we were fetching, bail out
+        if (relatedNodes.length !== nodeCountAtCall) return;
         relatedNodes.forEach(node => {
-            const title = node.querySelector('.node-thumb')?.dataset.title;
+            // Guard: node might have been removed
+            if (!node.parentNode) return;
+            const img = node.querySelector('.node-thumb');
+            if (!img) return;
+            const title = img.dataset.title;
             if (title && thumbs[title]) {
-                const img = node.querySelector('.node-thumb');
-                if (img) {
-                    img.src = API + thumbs[title];
-                    img.onload = () => img.classList.add('loaded');
-                    img.onerror = () => { img.style.display = 'none'; };
-                }
+                img.src = API + thumbs[title];
+                img.onload = () => {
+                    // Guard: node still in DOM?
+                    if (img.parentNode && img.parentNode.parentNode) {
+                        img.classList.add('loaded');
+                    }
+                    img.onload = null; // One-shot cleanup
+                };
+                img.onerror = () => {
+                    img.style.display = 'none';
+                    img.onerror = null; // One-shot cleanup
+                };
             } else {
-                // No thumbnail — hide the placeholder
-                const img = node.querySelector('.node-thumb');
-                if (img) img.style.display = 'none';
+                img.style.display = 'none';
             }
         });
     } catch(e) {
         console.warn('Thumbnail load failed:', e);
-        // Hide all thumb placeholders on failure
         relatedNodes.forEach(node => {
             const img = node.querySelector('.node-thumb');
             if (img) img.style.display = 'none';
@@ -1984,14 +1955,35 @@ async function loadNodeThumbnails(related) {
 }
 
 function clearRelatedNodes() {
+    // Step 1: Force-stop float engine BEFORE any DOM removal
     stopFloat();
-    // 关键：真正从 DOM 移除节点，否则会累积
+    floatActive = false;
+
+    // Step 2: Abort any pending thumbnail loads and nullify callbacks
+    // (prevents img.onload/onerror from touching removed DOM)
+    relatedNodes.forEach(n => {
+        const img = n.querySelector('.node-thumb');
+        if (img) {
+            img.onload = null;
+            img.onerror = null;
+            img.src = ''; // Abort pending request
+        }
+    });
+
+    // Step 3: Remove nodes from DOM
     relatedNodes.forEach(n => {
         if (n.parentNode) n.parentNode.removeChild(n);
     });
     relatedNodes = [];
+
+    // Step 4: Thoroughly clean floatState
     Object.keys(floatState).forEach(k => delete floatState[k]);
-    // Preserve <defs> in SVG
+
+    // Step 5: Clear SVG line paths pool
+    linePaths.forEach(p => { if (p.parentNode) p.parentNode.removeChild(p); });
+    linePaths = [];
+
+    // Step 6: Clean SVG, preserve defs
     const defs = document.getElementById('svg-defs');
     while (linesSvg.firstChild) linesSvg.removeChild(linesSvg.firstChild);
     if (defs) linesSvg.appendChild(defs);
@@ -1999,12 +1991,58 @@ function clearRelatedNodes() {
 
 
 // =============================================
-// 自由浮动物理引擎
+// 自由浮动物理引擎 (v2: 空间网格碰撞 + 能量阈值提前终止)
 // =============================================
 let floatActive = false;
 let floatRafId = null;
 // 每个节点的物理状态
 const floatState = {}; // node.dataset.index → {x, y, vx, vy, targetX, targetY}
+
+// DPR-aware constants
+const DPR = window.devicePixelRatio || 1;
+function baseDAMP() { return 0.80; }
+function baseDRIFT() { return 0.04 / DPR; } // Higher DPR → less drift per frame for consistent visual speed
+
+// Spatial hash grid for O(n) collision detection
+class SpatialGrid {
+    constructor(cellSize) {
+        this.cellSize = cellSize;
+        this.cells = new Map();
+    }
+    clear() { this.cells.clear(); }
+    _key(cx, cy) { return cx + ',' + cy; }
+    insert(idx, x, y, w, h) {
+        // Insert into all cells this AABB overlaps
+        const minCX = Math.floor(x / this.cellSize);
+        const minCY = Math.floor(y / this.cellSize);
+        const maxCX = Math.floor((x + w) / this.cellSize);
+        const maxCY = Math.floor((y + h) / this.cellSize);
+        for (let cx = minCX; cx <= maxCX; cx++) {
+            for (let cy = minCY; cy <= maxCY; cy++) {
+                const key = this._key(cx, cy);
+                if (!this.cells.has(key)) this.cells.set(key, []);
+                this.cells.get(key).push(idx);
+            }
+        }
+    }
+    query(x, y, w, h) {
+        // Return all indices in same or neighboring cells
+        const result = new Set();
+        const minCX = Math.floor(x / this.cellSize) - 1;
+        const minCY = Math.floor(y / this.cellSize) - 1;
+        const maxCX = Math.floor((x + w) / this.cellSize) + 1;
+        const maxCY = Math.floor((y + h) / this.cellSize) + 1;
+        for (let cx = minCX; cx <= maxCX; cx++) {
+            for (let cy = minCY; cy <= maxCY; cy++) {
+                const key = this._key(cx, cy);
+                const bucket = this.cells.get(key);
+                if (bucket) bucket.forEach(idx => result.add(idx));
+            }
+        }
+        return result;
+    }
+}
+const spatialGrid = new SpatialGrid(200); // Cell size ~200px
 
 function initFloatPositions() {
     const VW = window.innerWidth;
@@ -2015,38 +2053,30 @@ function initFloatPositions() {
     const cx = VW / 2;
     const cy = VH / 2;
 
-    // 中心卡片占据区域（左右不放置节点）
-    const cardW = 440;   // 中心卡片宽度+margin
-    const cardH = 200;   // 中心卡片高度+margin
-    const gapX = 60;     // 距离卡片的间隙
+    const cardW = 440;
+    const cardH = 200;
+    const gapX = 60;
 
-    // 左侧可用区域：从卡片左边往左
     const leftStartX = 20;
     const leftEndX   = cx - cardW/2 - gapX;
-    // 右侧可用区域：从卡片右边往右
     const rightStartX = cx + cardW/2 + gapX;
     const rightEndX   = VW - 180;
 
-    // 垂直范围：避开顶部搜索栏
     const topY = 170;
     const bottomY = VH - 80;
 
-    // 分配节点：左一半，右一半
     const halfN = Math.ceil(n / 2);
     const leftCount = Math.min(halfN, n);
     const rightCount = n - leftCount;
 
     const positions = [];
 
-    // 左侧节点
     for (let i = 0; i < leftCount; i++) {
         const t = leftCount > 1 ? i / (leftCount - 1) : 0.5;
         const x = leftStartX + Math.random() * (leftEndX - leftStartX - 160);
         const y = topY + t * (bottomY - topY - 60) + (Math.random() - 0.5) * 30;
         positions.push({ x, y });
     }
-
-    // 右侧节点
     for (let i = 0; i < rightCount; i++) {
         const t = rightCount > 1 ? i / (rightCount - 1) : 0.5;
         const x = rightStartX + Math.random() * (rightEndX - rightStartX);
@@ -2058,11 +2088,8 @@ function initFloatPositions() {
         const idx = node.dataset.index;
         const nw = 160, nh = 62;
         const pos = positions[i] || { x: 50, y: cy };
-        let initX = pos.x;
-        let initY = pos.y;
-
-        initX = Math.max(10, Math.min(VW - nw - 10, initX));
-        initY = Math.max(topY, Math.min(VH - nh - 10, initY));
+        let initX = Math.max(10, Math.min(VW - nw - 10, pos.x));
+        let initY = Math.max(topY, Math.min(VH - nh - 10, pos.y));
 
         floatState[idx] = { x: initX, y: initY, vx: 0, vy: 0 };
         node.style.left = initX + 'px';
@@ -2079,58 +2106,52 @@ function floatTick() {
     const VW = window.innerWidth;
     const VH = window.innerHeight;
     const topSafe = 150;
-    const DAMP = 0.80;
-    const DRIFT = 0.04;
+    const DAMP = baseDAMP();
+    const DRIFT = baseDRIFT();
 
-    // 中心卡片中心（屏幕正中心）
     const cpx = VW / 2;
     const cpy = VH / 2;
-    // 中心卡片安全区半径（宽度400+高度200，取最大值+边距）
-    const SAFE_R = 220;
+    const cardRX = 230, cardRY = 120;
 
-    // 先收集所有节点最新尺寸
+    // Collect sizes once
     const sizes = relatedNodes.map(n => ({ w: n.offsetWidth || 160, h: n.offsetHeight || 60 }));
 
-    // 应用所有力，更新位置
+    // Apply forces and update positions
     relatedNodes.forEach((node, ki) => {
         const idx = node.dataset.index;
         const st = floatState[idx];
         if (!st) return;
-        const nw = sizes[ki].w;
-        const nh = sizes[ki].h;
+        const nw = sizes[ki].w, nh = sizes[ki].h;
 
-        // 微弱随机力（仅微调）
+        // Micro random drift
         st.vx += (Math.random() - 0.5) * DRIFT;
         st.vy += (Math.random() - 0.5) * DRIFT * 0.4;
 
-        // 速度衰减
+        // Velocity damping
         st.vx *= DAMP;
         st.vy *= DAMP;
 
-        // 中心卡片排斥力：只在进入卡片安全区时推开
+        // Center card elliptical repulsion
         const dx = (st.x + nw / 2) - cpx;
         const dy = (st.y + nh / 2) - cpy;
-        // 用椭圆判断是否在卡片区域内（卡片约 220x110 + margin）
-        const cardRX = 230, cardRY = 120;
         const ex = dx / cardRX, ey = dy / cardRY;
         const ellipseDist = Math.sqrt(ex * ex + ey * ey);
         if (ellipseDist < 1.0) {
-            // 在卡片椭圆内，强力推出
             const force = (1.0 - ellipseDist) * 3.5;
-            st.vx += (dx / (Math.sqrt(dx*dx+dy*dy)||1)) * force;
-            st.vy += (dy / (Math.sqrt(dx*dx+dy*dy)||1)) * force;
+            const len = Math.sqrt(dx*dx + dy*dy) || 1;
+            st.vx += (dx / len) * force;
+            st.vy += (dy / len) * force;
         }
 
-        // 速度上限，防止爆炸
+        // Speed cap
         const speed = Math.sqrt(st.vx * st.vx + st.vy * st.vy);
         const MAX_SPD = 6;
         if (speed > MAX_SPD) { st.vx = (st.vx / speed) * MAX_SPD; st.vy = (st.vy / speed) * MAX_SPD; }
 
-        // 更新位置
         st.x += st.vx;
         st.y += st.vy;
 
-        // 边界硬约束
+        // Boundary constraints
         if (st.x < 8) { st.x = 8; st.vx = Math.abs(st.vx) * 0.4; }
         if (st.y < topSafe + 10) { st.y = topSafe + 10; st.vy = Math.abs(st.vy) * 0.4; }
         if (st.x > VW - nw - 8) { st.x = VW - nw - 8; st.vx = -Math.abs(st.vx) * 0.4; }
@@ -2140,56 +2161,173 @@ function floatTick() {
         node.style.top = st.y + 'px';
     });
 
-    // 强碰撞分离（5轮迭代，足够分开）
-    for (let pass = 0; pass < 5; pass++) {
+    // ── Spatial-grid accelerated collision detection ──
+    spatialGrid.clear();
+    relatedNodes.forEach((node, i) => {
+        const st = floatState[node.dataset.index];
+        if (!st) return;
+        spatialGrid.insert(i, st.x, st.y, sizes[i].w, sizes[i].h);
+    });
+
+    // Iterative collision resolution with energy-based early termination
+    const MAX_PASSES = 5;
+    const DISPLACEMENT_THRESHOLD = 0.5; // Stop if max displacement per pass < this
+    const RESTITUTION = 0.3; // Momentum conservation factor
+
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+        let maxDisplacement = 0;
+        const checked = new Set(); // Avoid duplicate pair checks
+
         for (let i = 0; i < relatedNodes.length; i++) {
-            for (let j = i + 1; j < relatedNodes.length; j++) {
-                const ni = relatedNodes[i], nj = relatedNodes[j];
-                const si = floatState[ni.dataset.index];
+            const ni = relatedNodes[i];
+            const si = floatState[ni.dataset.index];
+            if (!si) continue;
+            const siW = sizes[i].w, siH = sizes[i].h;
+
+            // Only check neighbors from spatial grid
+            const neighbors = spatialGrid.query(si.x, si.y, siW, siH);
+            for (const j of neighbors) {
+                if (j <= i) continue; // Each pair once
+                const pairKey = i + '_' + j;
+                if (checked.has(pairKey)) continue;
+                checked.add(pairKey);
+
+                const nj = relatedNodes[j];
                 const sj = floatState[nj.dataset.index];
-                if (!si || !sj) continue;
-                const siW = sizes[i].w, siH = sizes[i].h;
+                if (!sj) continue;
                 const sjW = sizes[j].w, sjH = sizes[j].h;
+
                 const dx = (si.x + siW / 2) - (sj.x + sjW / 2);
                 const dy = (si.y + siH / 2) - (sj.y + sjH / 2);
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 const minDist = (siW + sjW) / 2 + 32;
                 const minDistH = (siH + sjH) / 2 + 24;
                 const reqDist = Math.max(minDist, minDistH);
+
                 if (dist < reqDist && dist > 0.1) {
-                    const push = (reqDist - dist) * 1.2; // 推力 1.2（强）
+                    const push = (reqDist - dist) * 1.2;
                     const nx = dx / dist, ny = dy / dist;
-                    si.x += nx * push; si.y += ny * push;
-                    sj.x -= nx * push; sj.y -= ny * push;
-                    si.vx += nx * push * 0.3;
-                    si.vy += ny * push * 0.3;
-                    sj.vx -= nx * push * 0.3;
-                    sj.vy -= ny * push * 0.3;
+                    const dispI = nx * push;
+                    const dispJ = ny * push;
+                    si.x += dispI; si.y += dispJ;
+                    sj.x -= dispI; sj.y -= dispJ;
+                    // Apply restitution: v_new = v_old * restitution
+                    si.vx += nx * push * RESTITUTION;
+                    si.vy += ny * push * RESTITUTION;
+                    sj.vx -= nx * push * RESTITUTION;
+                    sj.vy -= ny * push * RESTITUTION;
+                    maxDisplacement = Math.max(maxDisplacement, Math.abs(dispI), Math.abs(dispJ));
                 }
             }
         }
+
+        // Early termination: if all displacements are tiny, stop iterating
+        if (maxDisplacement < DISPLACEMENT_THRESHOLD) break;
     }
 
-    drawLines();
+    // Update lines dynamically each frame
+    updateLinesDynamic();
     floatRafId = requestAnimationFrame(floatTick);
 }
 
 function stopFloat() {
     floatActive = false;
     if (floatRafId) cancelAnimationFrame(floatRafId);
+    floatRafId = null;
 }
 
 function repositionNodes() {
     if (relatedNodes.length === 0) return;
-    initFloatPositions();
+    const VW = window.innerWidth;
+    const VH = window.innerHeight;
+    const cx = VW / 2;
+    const cy = VH / 2;
+    const cardW = 440, cardH = 200, gapX = 60;
+    const leftStartX = 20, leftEndX = cx - cardW/2 - gapX;
+    const rightStartX = cx + cardW/2 + gapX, rightEndX = VW - 180;
+    const topY = 170, bottomY = VH - 80;
+    const n = relatedNodes.length;
+    const halfN = Math.ceil(n / 2);
+
+    // Smooth reposition: lerp toward new targets instead of teleporting
+    relatedNodes.forEach((node, i) => {
+        const idx = node.dataset.index;
+        const st = floatState[idx];
+        if (!st) return;
+        const nw = node.offsetWidth || 160;
+        const nh = node.offsetHeight || 60;
+
+        // Compute new target position (same logic as initFloatPositions)
+        const side = i % 2 === 0 ? 1 : -1;
+        const sideIdx = Math.floor(i / 2);
+        const sideTotal = Math.ceil(n / 2);
+        const usableH = VH - topY - 80 - nh;
+        const slotH = usableH / sideTotal;
+        let targetX, targetY;
+        targetY = topY + slotH * sideIdx + slotH * 0.5 - nh / 2;
+        const bandW = VW * 0.18;
+        if (side > 0) {
+            targetX = cx + cardW/2 + gapX + Math.random() * bandW;
+        } else {
+            targetX = cx - cardW/2 - gapX - nw - Math.random() * bandW;
+        }
+        targetX = Math.max(8, Math.min(VW - nw - 8, targetX));
+        targetY = Math.max(topY, Math.min(VH - nh - 8, targetY));
+
+        // Lerp: move 40% toward target for smooth transition (no jump)
+        const lerpFactor = 0.4;
+        st.x += (targetX - st.x) * lerpFactor;
+        st.y += (targetY - st.y) * lerpFactor;
+        st.vx = 0;
+        st.vy = 0;
+        node.style.left = st.x + 'px';
+        node.style.top = st.y + 'px';
+    });
+
+    // Restart float if not active
+    if (!floatActive) {
+        floatActive = true;
+        floatTick();
+    }
 }
 
-function drawLines() {
-    if (!linesSvg || relatedNodes.length === 0) return;
-    // Preserve <defs>, only clear paths
+// ── SVG line path pool: create once, update `d` attribute dynamically ──
+let linePaths = []; // Array of <path> elements, one per relatedNodes slot
+
+function ensureLinePaths(count) {
+    // Ensure we have exactly `count` <path> elements under #lines-svg
     const defs = document.getElementById('svg-defs');
-    while (linesSvg.firstChild) linesSvg.removeChild(linesSvg.firstChild);
-    if (defs) linesSvg.appendChild(defs);
+    // Remove excess paths
+    while (linePaths.length > count) {
+        const p = linePaths.pop();
+        if (p.parentNode) p.parentNode.removeChild(p);
+    }
+    // Add missing paths
+    for (let i = linePaths.length; i < count; i++) {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', 'rgba(0,200,255,0.35)');
+        path.setAttribute('stroke-width', '1.2');
+        path.setAttribute('stroke-dasharray', '6 8');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('opacity', '0.3');
+        path.setAttribute('filter', 'url(#lineGlow)');
+        const animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+        animate.setAttribute('attributeName', 'stroke-dashoffset');
+        animate.setAttribute('values', '0; -14');
+        animate.setAttribute('dur', '1.5s');
+        animate.setAttribute('repeatCount', 'indefinite');
+        animate.setAttribute('calcMode', 'linear');
+        path.appendChild(animate);
+        linesSvg.appendChild(path);
+        linePaths.push(path);
+    }
+}
+
+// Called every frame from floatTick — updates `d` attribute only, no DOM thrash
+function updateLinesDynamic() {
+    if (!linesSvg || relatedNodes.length === 0) return;
+    ensureLinePaths(relatedNodes.length);
 
     const cardRect = centerCard.getBoundingClientRect();
     const cx = cardRect.left + cardRect.width / 2;
@@ -2198,7 +2336,6 @@ function drawLines() {
     relatedNodes.forEach((node, i) => {
         const nx = node.offsetLeft + node.offsetWidth / 2;
         const ny = node.offsetTop + node.offsetHeight / 2;
-
         const midX = (cx + nx) / 2;
         const midY = (cy + ny) / 2;
         const dx = nx - cx, dy = ny - cy;
@@ -2206,32 +2343,25 @@ function drawLines() {
         const curve = dist * 0.18;
         const cpX = midX - dy / dist * curve;
         const cpY = midY + dx / dist * curve;
-
-        const hotness = parseFloat(node.dataset.hotness || '0.5');
-        // 统一虚线颜色与中心卡片边框一致
-        const lineColor = 'rgba(0,200,255,0.35)';
-
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const d = 'M ' + cx + ' ' + cy + ' Q ' + cpX + ' ' + cpY + ' ' + nx + ' ' + ny;
-        path.setAttribute('d', d);
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', lineColor);
-        path.setAttribute('stroke-width', '1.2');
-        path.setAttribute('stroke-dasharray', '6 8');
-        path.setAttribute('stroke-linecap', 'round');
-        path.setAttribute('opacity', '0.3');
-        path.setAttribute('filter', 'url(#lineGlow)');
-        
-        const animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-        animate.setAttribute('attributeName', 'stroke-dashoffset');
-        animate.setAttribute('values', '0; -14');
-        animate.setAttribute('dur', '1.5s');
-        animate.setAttribute('repeatCount', 'indefinite');
-        animate.setAttribute('calcMode', 'linear');
-        path.appendChild(animate);
-        
-        linesSvg.appendChild(path);
+        linePaths[i].setAttribute('d', d);
     });
+}
+
+// Full drawLines (called once after nodes are first created)
+function drawLines() {
+    // Reset line path pool for a clean start
+    const defs = document.getElementById('svg-defs');
+    // Remove all old paths
+    linePaths.forEach(p => { if (p.parentNode) p.parentNode.removeChild(p); });
+    linePaths = [];
+    // Re-add defs if stripped
+    while (linesSvg.firstChild) linesSvg.removeChild(linesSvg.firstChild);
+    if (defs) linesSvg.appendChild(defs);
+
+    if (!linesSvg || relatedNodes.length === 0) return;
+    ensureLinePaths(relatedNodes.length);
+    updateLinesDynamic();
 }
 
 function updateBreadcrumb() {
@@ -2264,10 +2394,7 @@ function updateBreadcrumb() {
     });
 }
 
-// Redraw lines on scroll/resize
-window.addEventListener('resize', () => {
-    if (relatedNodes.length > 0) repositionNodes();
-});
+// Redraw lines on scroll/resize (handled by main resize listener above)
 
 // Click outside to close suggestions
 document.addEventListener('click', (e) => {
