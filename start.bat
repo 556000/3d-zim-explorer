@@ -14,7 +14,7 @@ if not exist 'data\put_zim_files_here.txt' (
 )
 
 echo Starting server...
-start '' 3d-wiki-explorer.exe
+start "" python server.py
 
 timeout /t 2 /nobreak >nul
 

@@ -17,7 +17,7 @@ if not exist "data\在这里放置ZIM文件.txt" (
 
 :: 启动服务器
 echo 正在启动本地服务器...
-start "" 3d-wiki-explorer.exe
+start "" python server.py
 
 :: 等待服务器启动
 timeout /t 2 /nobreak >nul

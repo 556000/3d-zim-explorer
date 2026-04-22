@@ -42,7 +42,7 @@
 ### 1. 安装依赖
 
 ```bash
-pip install fastapi uvicorn libzim beautifulsoup4
+pip install fastapi uvicorn libzim beautifulsoup4 zhconv
 ```
 
 ### 2. 配置 ZIM 文件路径
@@ -136,9 +136,7 @@ Gitee：https://gitee.com/xarker/3d-zim-explorer
 
 ```bash
 # Install
-pip install fastapi uvicorn libzim beautifulsoup4
-
-# Configure ZIM path in zim-config.json, then:
+pip install fastapi uvicorn libzim beautifulsoup4 zhconv
 python server.py
 # Open http://localhost:8765
 ```
