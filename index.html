@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>知识星图 · 时空导航</title>
+    <title>3D ZIM Explorer · 时空导航</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <style>
@@ -776,7 +776,7 @@
 <div class="search-suggestions" id="suggestions"></div>
 
 <div class="welcome" id="welcome">
-    <h1 data-i18n="welcome_h1">知识星图</h1>
+    <h1 data-i18n="welcome_h1">3D ZIM Explorer</h1>
     <p data-i18n="welcome_p">输入一个词条，开始你的时空知识导航</p>
 </div>
 
@@ -841,7 +841,7 @@
 <div class="copyright-wrap">
     <span class="copyright" id="copyright-text">Xarker</span>
     <div class="copyright-tip" id="copyright-tip">
-        <div class="tip-label" data-i18n="zim_tip_title">知识星图 · 3D 维基百科导航</div>
+        <div class="tip-label" data-i18n="zim_tip_title">3D ZIM Explorer · 时空导航</div>
         <div class="tip-sep"></div>
         <div class="tip-row">
             <span class="tip-key" data-i18n="zim_tip_author">作者</span>
@@ -958,7 +958,7 @@ const I18N = {
         toolbar_links: '超链接',
         toolbar_export: '思路导出',
         toolbar_load: '载入ZIM文件',
-        welcome_h1: '知识星图',
+        welcome_h1: '3D ZIM Explorer',
         welcome_p: '输入一个词条，开始你的时空知识导航',
         expand_btn: '展开全文',
         collapse_btn: '收起全文',
@@ -979,7 +979,7 @@ const I18N = {
         zim_cancel: '取消',
         zim_error_path: '请输入 ZIM 文件路径',
         zim_error_ext: '文件扩展名必须是 .zim',
-        zim_tip_title: '知识星图 · 3D 维基百科导航',
+        zim_tip_title: '3D ZIM Explorer · 时空导航',
         zim_tip_author: '作者',
         zim_tip_author_val: '陈驰',
         zim_tip_location: '来自',
@@ -1241,7 +1241,7 @@ function generateMindmap() {
 
     if (visits.length === 0) return '* 尚无浏览记录';
 
-    let md = '# 知识星图 · 思维导图\n\n';
+    let md = '# 3D ZIM Explorer · 思维导图\n\n';
     md += `> 导出时间：${new Date().toLocaleString('zh-CN')}\n`;
     md += `> 浏览词条：${visits.length} 个\n\n`;
     md += '---\n\n';
@@ -1302,7 +1302,7 @@ btnModalDownload.addEventListener('click', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `知识星图_${new Date().toISOString().slice(0,10)}.md`;
+    a.download = `3D-ZIM-Explorer_思维导图_${new Date().toISOString().slice(0,10)}.md`;
     a.click();
     URL.revokeObjectURL(url);
     exportModal.classList.remove('visible');
@@ -2424,3 +2424,5 @@ loadingEl.classList.remove('visible');
 
 </body>
 </html>
+
+

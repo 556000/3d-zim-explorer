@@ -44,7 +44,7 @@ else:
 # Global archive instance
 archive: Optional[libzim.Archive] = None
 
-app = FastAPI(title="3D Wiki Explorer API")
+app = FastAPI(title="3D ZIM Explorer API")
 
 # CORS for local development
 app.add_middleware(
@@ -138,7 +138,7 @@ async def serve_orbitcontrols():
 
 @app.get("/api/status")
 async def api_status():
-    return {"message": "3D Wiki Explorer API", "status": "running"}
+    return {"message": "3D ZIM Explorer API", "status": "running"}
 
 
 @app.get("/archive-info")

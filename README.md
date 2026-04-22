@@ -1,4 +1,4 @@
-# 🌌 3D Wiki Explorer — 知识星图 · 时空导航
+# 🌌 3D ZIM Explorer — 时空导航
 
 A 3D interactive Wikipedia knowledge graph explorer. Navigate the universe of knowledge with an immersive star-map visualization.
 
@@ -73,7 +73,7 @@ Or use the included batch files:
 ## 📁 Project Structure
 
 ```
-3d-wiki-explorer/
+3d-zim-explorer/
 ├── server.py          # FastAPI backend (ZIM parsing + API)
 ├── index.html         # Single-file frontend (HTML/CSS/JS)
 ├── three.min.js       # Three.js 3D engine
@@ -98,4 +98,4 @@ Contact: 12097652@QQ.com
 
 ---
 
-*知识星图，点亮探索之路* ✨
+*时空导航，点亮探索之路* ✨

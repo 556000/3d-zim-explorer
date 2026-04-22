@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title 3D Wiki Explorer
+title 3D ZIM Explorer
 
 echo.
 echo =====================================
-echo     3D Wiki Explorer - Starting...
+echo     3D ZIM Explorer - Starting...
 echo =====================================
 echo.
 

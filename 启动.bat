@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title 3D 知识星图
+title 3D ZIM Explorer
 
 echo.
 echo =====================================
-echo     3D 知识星图 - 正在启动...
+echo     3D ZIM Explorer - 正在启动...
 echo =====================================
 echo.
 
