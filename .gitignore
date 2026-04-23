@@ -1,11 +1,30 @@
+
+# Build outputs
+build/
+dist/
+
+# Temporary test files
+test-*.py
+test-*.spec
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
-data/
-*.zim
+
+# Temporary spec files (keep only the main one)
+3d-zim-explorer-onefile.spec
+
+# Temporary batch files
+build-exe.bat
+
+# Local config (contains personal paths)
 zim-config.json
-dist/
-'dist/
-*.zip
-.DS_Store
-Thumbs.db
