@@ -120,6 +120,13 @@ python server.py
 
 ## 📋 更新日志
 
+### v0.952 (2026-04-23)
+
+- 🔧 **修复 PyInstaller zhconv 数据文件缺失**：spec 文件添加 `zhconv` 数据文件打包
+- 📦 **EXE 打包完善**：移除 tkinter 依赖，简化为纯路径输入 + ZIM 路径预填
+- 📝 **输入框 UX 优化**：ZIM 输入窗口从 480px 增大至 680px，字体提升至 15px
+- 🧩 **打包体验提升**：自动打开浏览器，内置默认路径提示，开箱即用
+
 ### v0.951 (2026-04-22)
 
 - 🔧 **修复 renderMath 链路丢失**：TOKEN 占位符机制，KaTeX 不再破坏 `.wiki-link` DOM
@@ -150,32 +157,166 @@ python server.py
 
 ---
 
+---
+
 ## English
 
-**3D ZIM Explorer** is a 3D interactive Wikipedia knowledge graph explorer with immersive star-map visualization and warp-speed navigation animations.
+# 🌌 3D ZIM Explorer — Knowledge Navigator
 
 <p align="center">
-  <img src="screenshots/starmap.png" alt="3D Knowledge Star Map" width="750">
+  <strong>Explore knowledge among the stars — 3D Wikipedia visualization</strong>
 </p>
 
-### Features
+<p align="center">
+  <a href="#preview">Preview</a> •
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#tech-stack">Tech Stack</a>
+</p>
 
-- 🌍 **3D Knowledge Graph** — Central article card + orbiting related nodes (with thumbnails) + arc connections
-- 🚀 **Warp Animation** — Starfield stretches into light streams when jumping between articles
-- 🔢 **KaTeX Math Rendering** — Full LaTeX support: `$$`, `\[\]`, `\(\)`, `{\displaystyle}`
-- 🔗 **Clickable Wiki Links** — In-article links trigger seamless star-map transitions
-- 🧭 **Breadcrumb Navigation** — Track and revisit your exploration path
-- 🌐 **Multi-language UI** — Simplified Chinese / Traditional Chinese / English
-- 💡 **Mind Export** — Export browsing history as structured Markdown notes
-- 📦 **Offline-first** — Runs entirely on local ZIM files, no internet needed
+<p align="center">
+  <img src="screenshots/welcome.png" alt="Welcome Page" width="800">
+</p>
 
-### Quick Start
+---
+
+## 🖼️ Preview
+
+### 🌠 3D Knowledge Star Map
+Search for any topic and instantly unfold a brilliant knowledge starfield. The central card shows the current article, surrounded by related nodes with curved connections linking concepts.
+
+<p align="center">
+  <img src="screenshots/starmap.png" alt="3D Knowledge Star Map" width="900">
+</p>
+
+### 📄 Article Details & Math Rendering
+Click nodes or expand full text to view complete article content. LaTeX math formulas render automatically, and Wikipedia hyperlinks remain interactive.
+
+<p align="center">
+  <img src="screenshots/article.png" alt="Article Details & Math Rendering" width="700">
+</p>
+
+> 💡 **Warp Navigation**: Click any related node and the starfield stretches into light streams, like traversing a wormhole into a new knowledge domain.
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🌠 **3D Knowledge Graph** | Central article card + orbiting related nodes (with thumbnails) + arc connections |
+| 🚀 **Warp Animation** | Starfield accelerates into light streaks when jumping for immersive wormhole experience |
+| 🔢 **KaTeX Math** | Full LaTeX support: `$$`, `\[...\]`, `\(...\)`, `{\displaystyle}`, `{\textstyle}` |
+| 🔗 **Clickable Wiki Links** | In-text links trigger seamless star-map transitions |
+| 🧭 **Breadcrumb Nav** | Track your exploration path, revisit historical nodes anytime |
+| 🌐 **Multi-language** | Simplified Chinese / Traditional Chinese / English one-click toggle |
+| 💡 **Idea Export** | Export browsing path as structured Markdown notes |
+| 📦 **Full Offline** | Runs entirely on ZIM files, no internet required |
+| 🖥️ **EXE Distribution** | Standalone Windows EXE with auto browser open (v0.952+) |
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: EXE (Windows Only, v0.952+)
+1. Download latest `3D-ZIM-Explorer-v0.952.zip` from Releases
+2. Extract anywhere
+3. Double-click `3D-ZIM-Explorer.exe`
+4. Paste your ZIM file path (default pre-filled for convenience)
+5. Click "Load" and start exploring
+
+### Option 2: Source (All Platforms)
+
+#### Requirements
+- Python 3.10+
+- [Kiwix Wikipedia ZIM file](https://wiki.kiwix.org/wiki/Content) (for Chinese, try `wikipedia_zh_all_maxi_*.zim`)
+
+#### Installation & Launch (4 Steps)
 
 ```bash
+# 1. Clone repo
 git clone https://github.com/556000/3d-zim-explorer.git
 cd 3d-zim-explorer
+
+# 2. Install dependencies
 pip install fastapi uvicorn libzim beautifulsoup4 zhconv
+
+# 3. Configure ZIM path (optional)
 # Edit zim-config.json with your ZIM file path
+
+# 4. Launch
 python server.py
-# Open http://localhost:8765
+# Then open http://localhost:8765 in your browser
 ```
+
+> 💡 Windows users can double-click `启动.bat` for one-click startup.
+
+### Controls
+
+| Action | Effect |
+|--------|--------|
+| 🔍 Search + Enter | Search article and unfold knowledge graph |
+| 👆 Click node | View article summary and related content |
+| 👆👆 Double-click | Re-center graph on that article |
+| 🖱️ Drag | Rotate 3D view |
+| 🔄 Scroll wheel | Zoom in/out |
+| ➡️ Right drag | Pan view |
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Backend** | FastAPI + libzim + BeautifulSoup4 + zhconv |
+| **3D Engine** | Three.js (Canvas starfield background) |
+| **Frontend** | Vanilla HTML/CSS/JS (no framework dependencies) |
+| **Math Rendering** | KaTeX |
+| **Data Source** | ZIM offline Wikipedia (from [Kiwix](https://kiwix.org/)) |
+
+```
+3d-wiki-explorer/
+├── server.py           # FastAPI backend (ZIM parsing + APIs)
+├── index.html          # Single-file frontend (HTML/CSS/JS all-in-one)
+├── three.min.js        # Three.js 3D engine
+├── OrbitControls.js    # Camera controls
+├── zim-config.json     # ZIM file path config (for source mode)
+├── 启动.bat             # Windows one-click start
+└── start.bat           # Windows service-only start
+```
+
+---
+
+## 📋 Changelog
+
+### v0.952 (2026-04-23)
+- 🔧 **Fixed zhconv data files missing** in PyInstaller bundles
+- 📦 **EXE packaging improved** — removed tkinter, simplified to path input with pre-filled default
+- 📝 **UX optimized** — ZIM input dialog enlarged from 480px to 680px, font size increased to 15px
+- 🧩 **Out-of-box experience** — auto browser open, built-in default path for convenience
+
+### v0.951 (2026-04-22)
+- 🔧 **Fixed renderMath link breakage** with TOKEN placeholder system
+- ⚡ **Physics engine re-architected** with spatial hash grid for O(n) collision detection
+- 🧹 **Memory management improved** with stale thumbnail request detection
+- 🎨 **Dynamic connections** using SVG path pool with only `d` attribute updates
+- 🪟 **Responsive layout** with smooth lerp transitions on resize
+
+### v0.95 (2026-04-22)
+- 🎉 Initial release: 3D knowledge star-map + warp animations + KaTeX + multi-language + breadcrumbs + idea export
+
+---
+
+## 📜 License
+
+[GNU GPL v3.0](LICENSE) · Uses [libzim](https://github.com/openzim/libzim) · Thanks to [Kiwix](https://kiwix.org/)
+
+## 👤 Author
+
+**Chen Chi (Xarker)** — Kaili, Guizhou, China
+
+📧 12097652@QQ.com · [GitHub](https://github.com/556000/3d-zim-explorer) · [Gitee](https://gitee.com/xarker/3d-zim-explorer)
+
+---
+
+*Navigate knowledge, light the way of exploration* ✨

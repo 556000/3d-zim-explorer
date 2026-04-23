@@ -677,20 +677,22 @@
     background: rgba(16,20,35,0.98);
     border: 1px solid rgba(255,255,255,0.12);
     border-radius: 14px; padding: 28px;
-    width: 480px; max-width: 90vw;
+    width: 680px; max-width: 95vw;
     box-shadow: 0 20px 60px rgba(0,0,0,0.6);
 }
 .form-group { margin-bottom: 20px; }
 .form-group label {
     display: block; margin-bottom: 8px;
-    font-size: 13px; color: var(--text-dim);
+    font-size: 14px; color: var(--text-dim);
 }
 .input-row { display: flex; gap: 8px; }
-.input-row input {
+.input-row input,
+#zim-path-input {
     flex: 1; background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 8px; padding: 10px 14px;
-    color: var(--text); font-size: 14px; outline: none;
+    border-radius: 10px; padding: 14px 16px;
+    color: var(--text); font-size: 15px; outline: none;
+    width: 100%;
 }
 .input-row input:focus { border-color: var(--accent); }
 .browse-btn {
@@ -817,11 +819,9 @@
     <div class="zim-modal-box" id="zim-modal-box">
         <div class="modal-title" data-i18n="zim_title">📦 加载 ZIM 文件</div>
         <div class="form-group">
-            <label data-i18n="zim_label">ZIM 文件路径</label>
-            <div class="input-row">
-                <input type="text" id="zim-path-input" placeholder="如 C:\wiki\zhwiki.zim" autocomplete="off">
-                <button id="btn-browse" class="browse-btn" data-i18n="zim_browse">浏览</button>
-            </div>
+            <label data-i18n="zim_label">输入 ZIM 文件路径</label>
+            <input type="text" id="zim-path-input" placeholder="如 C:\wiki\zhwiki.zim" autocomplete="off">
+            <div style="color:var(--text-dim);font-size:10px;margin-top:2px;" data-i18n="zim_hint">从文件管理器复制路径粘贴到这里</div>
             <div class="error-text" id="zim-error"></div>
         </div>
         <div class="btn-row">
@@ -857,7 +857,7 @@
         </div>
         <div class="tip-row">
             <span class="tip-key" data-i18n="zim_tip_version">项目版本</span>
-            <span class="tip-value">0.951</span>
+            <span class="tip-value">0.952</span>
         </div>
         <div class="tip-sep"></div>
         <div class="tip-license" data-i18n="zim_tip_license">
@@ -934,7 +934,6 @@ const zimErrorEl = document.getElementById('zim-error');
 const zimPanel = document.getElementById('zim-panel');
 const zimNameEl = document.getElementById('zim-name');
 const zimMetaEl = document.getElementById('zim-meta');
-const btnBrowse = document.getElementById('btn-browse');
 const btnZimCancel = document.getElementById('btn-zim-cancel');
 const btnZimLoad = document.getElementById('btn-zim-load');
 const copyrightText = document.getElementById('copyright-text');
@@ -972,9 +971,9 @@ const I18N = {
         export_download: '下载 .md 文件',
         modal_cancel: '取消',
         zim_title: '加载 ZIM 文件',
-        zim_label: 'ZIM 文件路径',
-        zim_placeholder: '如 C:\wiki\zhwiki.zim',
-        zim_browse: '浏览',
+        zim_label: '输入 ZIM 文件路径',
+        zim_placeholder: '粘贴 ZIM 文件路径，如 D:\\wiki\\zhwiki.zim',
+        zim_hint: '从文件管理器复制路径粘贴到这里',
         zim_load: '加载文件',
         zim_cancel: '取消',
         zim_error_path: '请输入 ZIM 文件路径',
@@ -987,7 +986,7 @@ const I18N = {
         zim_tip_contact: '联系',
         zim_tip_contact_val: '12097652@QQ.com',
         zim_tip_version: '项目版本',
-        zim_tip_version_val: '0.951',
+        zim_tip_version_val: '0.952',
         zim_tip_license: '本项目遵守 GNU GPL v3 开源协议 · 感谢 Kiwix 提供 ZIM 文件格式与离线维基百科解决方案 · 维基百科内容采用 CC BY-SA 3.0 许可',
     },
     'zh-TW': {
@@ -1010,9 +1009,9 @@ const I18N = {
         export_download: '下載 .md 文件',
         modal_cancel: '取消',
         zim_title: '載入 ZIM 文件',
-        zim_label: 'ZIM 文件路徑',
-        zim_placeholder: '如 C:\wiki\zhwiki.zim',
-        zim_browse: '瀏覽',
+        zim_label: '輸入 ZIM 檔案路徑',
+        zim_placeholder: '貼上 ZIM 檔案路徑，如 D:\\wiki\\zhwiki.zim',
+        zim_hint: '從檔案總管複製路徑貼上到這裡',
         zim_load: '載入文件',
         zim_cancel: '取消',
         zim_error_path: '請輸入 ZIM 文件路徑',
@@ -1025,7 +1024,7 @@ const I18N = {
         zim_tip_contact: '聯繫',
         zim_tip_contact_val: '12097652@QQ.com',
         zim_tip_version: '項目版本',
-        zim_tip_version_val: '0.951',
+        zim_tip_version_val: '0.952',
         zim_tip_license: '本項目遵守 GNU GPL v3 開源協議 · 感謝 Kiwix 提供 ZIM 文件格式與離線維基百科解決方案 · 維基百科內容採用 CC BY-SA 3.0 許可',
     },
     'en': {
@@ -1048,9 +1047,9 @@ const I18N = {
         export_download: 'Download .md',
         modal_cancel: 'Cancel',
         zim_title: 'Load ZIM File',
-        zim_label: 'ZIM File Path',
-        zim_placeholder: 'e.g. C:\wiki\zhwiki.zim',
-        zim_browse: 'Browse',
+        zim_label: 'Enter ZIM file path',
+        zim_placeholder: 'Paste ZIM file path, e.g. D:\\wiki\\zhwiki.zim',
+        zim_hint: 'Copy path from File Explorer and paste here',
         zim_load: 'Load',
         zim_cancel: 'Cancel',
         zim_error_path: 'Please enter ZIM file path',
@@ -1063,7 +1062,7 @@ const I18N = {
         zim_tip_contact: 'Contact',
         zim_tip_contact_val: '12097652@QQ.com',
         zim_tip_version: 'Version',
-        zim_tip_version_val: '0.951',
+        zim_tip_version_val: '0.952',
         zim_tip_license: 'This project is licensed under GNU GPL v3 · Thanks to Kiwix for ZIM file format and offline Wikipedia solutions · Wikipedia content under CC BY-SA 3.0',
     }
 };
@@ -1097,9 +1096,16 @@ function applyI18n() {
     document.querySelector('#zim-modal .modal-title').textContent = t('zim_title');
     document.querySelector('#zim-modal label').textContent = t('zim_label');
     document.getElementById('zim-path-input').placeholder = t('zim_placeholder');
-    document.getElementById('btn-browse').textContent = t('zim_browse');
     document.getElementById('btn-zim-cancel').textContent = t('zim_cancel');
     document.getElementById('btn-zim-load').textContent = t('zim_load');
+    // Pre-fill default path if exists
+    const savedPath = localStorage.getItem(ZIM_PATH_KEY);
+    const defaultPath = 'D:\\wikipedia_zh_all_maxi_2025-09.zim';
+    if (savedPath) {
+        zimPathInput.value = savedPath;
+    } else {
+        zimPathInput.value = defaultPath;
+    }
 
     // Sticky note
     document.querySelector('#sticky-note .sticky-note-label').textContent = t('sticky_label');
@@ -2453,25 +2459,6 @@ zimModal.addEventListener('click', function(e) {
 });
 zimPathInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') btnZimLoad.click();
-});
-
-// Browse button — call backend native file dialog
-btnBrowse.addEventListener('click', async function() {
-    btnBrowse.disabled = true;
-    btnBrowse.textContent = '选择中…';
-    try {
-        var r = await fetch(API + '/browse-zim');
-        var data = await r.json();
-        if (data.path) {
-            zimPathInput.value = data.path;
-        }
-    } catch(e) {
-        zimErrorEl.textContent = '浏览失败：' + e.message;
-        zimErrorEl.classList.add('visible');
-    } finally {
-        btnBrowse.disabled = false;
-        btnBrowse.textContent = '浏览';
-    }
 });
 
 // Load ZIM file

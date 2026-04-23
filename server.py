@@ -598,40 +598,6 @@ async def get_content(body: dict):
         raise HTTPException(status_code=404, detail=f"Article not found: {e}")
 
 
-@app.get("/browse-zim")
-async def browse_zim():
-    """Open native file dialog to select a ZIM file, return full path"""
-    import threading
-    result = {"path": "", "error": ""}
-    
-    def _open_dialog():
-        try:
-            import tkinter as tk
-            from tkinter import filedialog
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            path = filedialog.askopenfilename(
-                parent=root,
-                title='选择 ZIM 文件',
-                filetypes=[('ZIM 文件', '*.zim'), ('所有文件', '*.*')],
-            )
-            root.destroy()
-            result["path"] = path
-        except Exception as e:
-            result["error"] = str(e)
-    
-    # Run dialog in a thread so it doesn't block the event loop
-    t = threading.Thread(target=_open_dialog)
-    t.start()
-    t.join(timeout=120)  # Wait up to 2 min for user to pick a file
-    
-    if result["error"]:
-        raise HTTPException(status_code=500, detail=result["error"])
-    
-    return {"path": result["path"]}
-
-
 @app.post("/reload-zim")
 async def reload_zim(body: dict):
     """Reload the ZIM archive from a new file path"""
@@ -655,10 +621,45 @@ async def reload_zim(body: dict):
         raise HTTPException(status_code=500, detail=f"Failed to load ZIM: {e}")
 
 
+def open_browser(url: str, delay: float = 1.5):
+    """Open browser after a short delay (to let server start)"""
+    import threading, webbrowser
+    def _open():
+        import time
+        time.sleep(delay)
+        webbrowser.open(url)
+    t = threading.Thread(target=_open, daemon=True)
+    t.start()
+
+
 def main():
-    print("Starting API server at http://localhost:8765")
-    print("Use the '载入ZIM文件' button in the UI to load a ZIM archive.")
-    uvicorn.run(app, host="0.0.0.0", port=8765)
+    import argparse
+    parser = argparse.ArgumentParser(description='3D ZIM Explorer - 3D维基知识星图探索器')
+    parser.add_argument('--zim', type=str, help='Path to ZIM file to load on startup')
+    parser.add_argument('--port', type=int, default=8765, help='Port to run the server on (default: 8765)')
+    parser.add_argument('--no-browser', action='store_true', help='Do not open browser automatically')
+    args = parser.parse_args()
+
+    # Load ZIM file if specified via command line
+    if args.zim and os.path.exists(args.zim):
+        try:
+            init_archive(args.zim)
+            print(f"已加载 ZIM 文件: {args.zim}")
+        except Exception as e:
+            print(f"加载 ZIM 文件失败: {e}")
+    else:
+        print("未指定 ZIM 文件，请在网页中点击「载入ZIM文件」选择")
+    
+    url = f"http://localhost:{args.port}"
+    print(f"\n{'='*50}")
+    print(f"  3D ZIM Explorer - 3D维基知识星图探索器")
+    print(f"  访问地址: {url}")
+    print(f"{'='*50}\n")
+    
+    if not args.no_browser:
+        open_browser(url, delay=1.5)
+    
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
 
 
 if __name__ == "__main__":
